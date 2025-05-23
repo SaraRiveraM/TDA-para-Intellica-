@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # === Title and page description ==
-st.markdown("<h1 style='font-size: 60px;'>:strawberry: Relación Precio-Volumen de Frutitas :strawberry:</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size: 60px;'>🍓 Relación Precio-Volumen de Frutitas 🍓</h1>", unsafe_allow_html=True)
 st.markdown("<h1 style='font-size: 25px;'>Analizar a través del tiempo los cambios significativos en relación al precio y volumen de distintas frutas</h1>", unsafe_allow_html=True)
 
 # === Sidebar with instructions ===
