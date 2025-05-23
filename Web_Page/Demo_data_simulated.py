@@ -27,7 +27,7 @@ with st.sidebar:
     st.write("") 
 
     # Selector de fruta
-    fruta = st.selectbox(
+    fruta = st.radio(
         "Seleccione una fruta:",
         ["Aguacate", "Chile", "Fresa", "Frambuesa"]
     )
