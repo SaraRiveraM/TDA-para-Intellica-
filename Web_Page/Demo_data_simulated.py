@@ -9,7 +9,7 @@ from datetime import datetime
 
 # === Read the data ===
 
-data = pd.read_csv("C:/Users/areba/Downloads/Topo2025_prices_USDA.csv")
+data = pd.read_csv("C:/Users/52452/Downloads/Topo2025_prices_USDA.csv")
 
 # === Initial configuration ===
 st.set_page_config(
@@ -51,6 +51,9 @@ if html_url:
         st.error(f"Ocurrió un error al cargar el archivo: {str(e)}")
 else:
     st.warning("No hay visualización disponible para la fruta seleccionada")
+    
+    
+# == Serie de tiempo de precios de la fruta seleccionada ===
 
 # === Consulta de precio y volumen con base en la fecha y la fruta ===
 def consultar_precio_volumen(fecha, fruta):
