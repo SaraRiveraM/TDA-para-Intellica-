@@ -14,7 +14,7 @@ data = load_data()
 # === Initial configuration ===
 st.set_page_config(
     layout="wide",
-    page_title="Fruits a Topological Analysis for Intellica"
+    page_title="Fruits: a Topological Analysis for Intelica"
 )
 
 # === Title and page description ===
@@ -35,10 +35,10 @@ st.markdown("---")  # Línea separadora
 st.subheader("🔍 Consulta histórica de precios")
 
 # Convertir la columna de fecha a datetime
-data['date'] = pd.to_datetime(data['date'])
+data['report_date'] = pd.to_datetime(data['report_date'])
 
 # Obtener fechas únicas
-fechas_disponibles = data['date'].dt.date.unique()
+fechas_disponibles = data['report_date'].dt.date.unique()
 
 # Selector de fecha
 fecha_seleccionada = st.selectbox(
@@ -50,10 +50,10 @@ fecha_seleccionada = st.selectbox(
 # Consultar datos
 if fruta == "Zarzamora":
     df_filtrado = data[(data['commodity'] == 'Blackberries') & 
-                      (data['date'].dt.date == fecha_seleccionada)]
+                      (data['report_date'].dt.date == fecha_seleccionada)]
 else:
     df_filtrado = data[(data['commodity'] == 'Blueberries') & 
-                      (data['date'].dt.date == fecha_seleccionada)]
+                      (data['report_date'].dt.date == fecha_seleccionada)]
 
 # Mostrar resultados
 if not df_filtrado.empty:
@@ -117,10 +117,10 @@ if not df_historico.empty:
     df_historico = df_historico.sort_values('date')
     
     # Gráfico de líneas para precios
-    st.line_chart(df_historico.set_index('date')[['low_price', 'high_price']])
+    st.line_chart(df_historico.set_index('report_date')[['low_price', 'high_price']])
     
     # Gráfico de barras para volumen
-    st.bar_chart(df_historico.set_index('date')['volume'])
+    st.bar_chart(df_historico.set_index('report_date')['volume'])
 else:
     st.warning("No hay datos históricos disponibles")
 
@@ -129,7 +129,7 @@ st.markdown("---")
 st.subheader("📅 Análisis estacional")
 
 if not df_historico.empty:
-    df_historico['month'] = df_historico['date'].dt.month_name()
+    df_historico['month'] = df_historico['report_date'].dt.month_name()
     monthly_avg = df_historico.groupby('month')[['low_price', 'high_price']].mean().reindex([
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
