@@ -9,7 +9,7 @@ from datetime import datetime
 
 # === Read the data ===
 
-data = pd.read_csv("C:/Users/52452/Downloads/Topo2025_prices_USDA.csv")
+data = pd.read_csv("C:\Users\areba\Downloads\Topo2025_prices_USDA.csv")
 
 # === Initial configuration ===
 st.set_page_config(
