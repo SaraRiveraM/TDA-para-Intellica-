@@ -340,7 +340,6 @@ with tab2:
     st.sidebar.subheader("Resumen de Datos")
     st.sidebar.write(f"📅 Rango temporal: {data_f['report_date'].min().date()} a {data_f['report_date'].max().date()}")
     st.sidebar.write(f"🔢 Puntos de datos: {len(serie)}")
-    st.sidebar.write(f"💰 Rango de precios: ${serie.min()[0]:.2f} - ${serie.max()[0]:.2f}")
 
 
 # === Footer ===
