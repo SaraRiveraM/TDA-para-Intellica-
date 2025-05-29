@@ -23,6 +23,15 @@ from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, f1_scor
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from ripser import Rips
+from sklearn.preprocessing import FunctionTransformer
+from gtda.homology import VietorisRipsPersistence, Rips
+from gtda.pipeline import make_pipeline
+from gtda.pipeline import Pipeline as GtdaPipeline
+from gtda.utils import DatasetTransformer
+from gtda.mapper import CubicalCover
+from gtda.diagrams import Amplitude
+from gtda.time_series import TimeDelayEmbedding
+from gtda.pipeline import CollectionTransformer
 import seaborn as sns 
 
 # === Initial configuration ===
@@ -149,87 +158,108 @@ with tab1:
 
         st.dataframe(pivot_table.style.background_gradient(cmap='YlOrRd'))
 
-# ========================
-# === TAB 2 - Topología
-# ========================
+
 # ========================
 # === TAB 2 - Topología
 # ========================
 with tab2:
-    st.markdown("## 🔺 Análisis Topológico")
-    st.write("Esta sección explora patrones complejos en la evolución de los precios mediante herramientas de Topología Computacional.")
+    
+    with tab2:
+    st.header("🔺 Análisis Topológico de Series Temporales")
 
-    # === Leer datasets individuales ===
-    data_m = pd.read_csv("C:/Users/52452/Downloads/blueberry_prices.csv")
-    data_b = pd.read_csv("C:/Users/52452/Downloads/blackberry_prices.csv")
+    # === Lectura según fruta seleccionada ===
+    fruta_nombre = fruta_dict[fruta]
 
-    # === Usar la fruta seleccionada desde el sidebar ===
-    fruta_dict = {
-        "Zarzamora": "Blackberries",
-        "Mora Azul": "Blueberries"
-    }
+    if fruta_nombre == "Blueberries":
+        data_f = pd.read_csv("C:/Users/52452/Downloads/blueberry_prices.csv")
+    else:
+        data_f = pd.read_csv("C:/Users/52452/Downloads/blackberry_prices.csv")
 
-    df_topo = data_b if fruta == "Zarzamora" else data_m
+    data_f['report_date'] = pd.to_datetime(data_f['report_date'])
+    data_f = data_f.sort_values("report_date")
+    serie = data_f["price"].values.reshape(-1, 1)
 
-    st.markdown(f"### 🍇 Fruta seleccionada: `{fruta}`")
+    # === Mostrar serie original ===
+    st.subheader("📉 Serie de Precios")
+    st.line_chart(data_f.set_index("report_date")["price"])
 
-    # Elegir tipo de precio
-    columna_precio = st.selectbox("Seleccione el tipo de precio:", ['price', 'low_price', 'high_price'])
-    serie = df_topo[columna_precio].dropna().values
+    # ===========================
+    # === Pipelines definidos ===
+    # ===========================
 
-    # Selección de método
-    metodo = st.radio("Seleccione el método topológico:", ["Takens Embedding", "Sliding Windows", "Rips Diagram"], horizontal=True)
 
-    if metodo == "Takens Embedding":
-        st.markdown("#### 🔹 Takens Embedding con Persistencia")
+    # --- Takens Embedding pipeline ---
+    embedding_dimension = 5
+    embedding_time_delay = 5
+    stride = 2
 
-        embedder = TakensEmbedding(time_delay=5, dimension=5, stride=2)
-        batch_pca = CollectionTransformer(PCA(n_components=3), n_jobs=-1)
-        persistence = VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
-        scaling = Scaler()
-        entropy = PersistenceEntropy(normalize=True, nan_fill_value=-10)
+    embedder = TakensEmbedding(time_delay=embedding_time_delay,
+                               dimension=embedding_dimension,
+                               stride=stride)
 
-        pipeline = Pipeline([
-            ("embedder", embedder),
-            ("pca", batch_pca),
-            ("persistence", persistence),
-            ("scaling", scaling),
-            ("entropy", entropy)
-        ])
+    batch_pca = CollectionTransformer(PCA(n_components=3), n_jobs=-1)
+    persistence = VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
+    scaling = Scaler()
+    entropy = PersistenceEntropy(normalize=True, nan_fill_value=-10)
 
-        X = serie.reshape(-1, 1)
-        entropies = pipeline.fit_transform(X)
-        st.line_chart(entropies.flatten())
+    steps_te = [
+        ("embedder", embedder),
+        ("pca", batch_pca),
+        ("persistence", persistence),
+        ("scaling", scaling),
+        ("entropy", entropy)
+    ]
 
-    elif metodo == "Sliding Windows":
-        st.markdown("#### 🔹 Sliding Windows + Persistencia")
+    topological_transfomer_te = Pipeline(steps_te)
 
-        pipeline = Pipeline([
-            ("window", CollectionTransformer(SlidingWindow(size=30, stride=10))),
-            ("pca", CollectionTransformer(PCA(n_components=3), n_jobs=-1)),
-            ("persistence", VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)),
-            ("scaling", Scaler()),
-            ("entropy", PersistenceEntropy(normalize=True, nan_fill_value=-10))
-        ])
+    # --- Sliding Window pipeline ---
+    window_size = 30
+    stride = 10
 
-        X = serie.reshape(-1, 1)
-        entropies = pipeline.fit_transform(X)
-        st.line_chart(entropies.flatten())
+    steps_sw = [
+        ("window", CollectionTransformer(SlidingWindow(size=window_size, stride=stride))),
+        ("pca", CollectionTransformer(PCA(n_components=3), n_jobs=-1)),
+        ("persistence", VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)),
+        ("scaling", Scaler()),
+        ("entropy", PersistenceEntropy(normalize=True, nan_fill_value=-10))
+    ]
 
-    elif metodo == "Rips Diagram":
-        st.markdown("#### 🔹 Diagrama de Persistencia (Rips) clásico")
+    topological_transformer_sw = Pipeline(steps_sw)
 
-        def calcular_persistencia(X, maxdim=2):
-            X_2d = np.array(X).reshape(-1, 1)
-            return Rips(maxdim=maxdim).fit_transform(X_2d)
+    # --- Rips clásico pipeline ---
+    def calcular_persistencia(X, maxdim=2):
+        X_2d = np.array(X).reshape(-1, 1)  
+        return Rips(maxdim=maxdim).fit_transform(X_2d)
 
-        X = serie.reshape(-1, 1)
-        diagrams = calcular_persistencia(X)
+    homology_persistence_pipeline = Pipeline([
+        ('persistencia', FunctionTransformer(
+            calcular_persistencia,
+            kw_args={'maxdim': 2}
+        ))
+    ])
 
-        fig, ax = plt.subplots()
-        plot_diagrams(diagrams, ax=ax, show=False)
-        ax.set_title("Diagramas de Persistencia")
-        st.pyplot(fig)
+    # ===============================
+    # === Resultados de análisis ===
+    # ===============================
+
+    st.subheader("🔹 Entropía - Takens Embedding")
+    resultado_te = topological_transfomer_te.fit_transform(serie)
+    st.line_chart(resultado_te)
+
+    st.subheader("🔸 Entropía - Sliding Windows")
+    resultado_sw = topological_transformer_sw.fit_transform(serie)
+    st.line_chart(resultado_sw)
+
+    st.subheader("🔻 Diagrama de Persistencia - Rips directo")
+    diagrams = homology_persistence_pipeline.fit_transform(serie)
+
+    import matplotlib.pyplot as plt
+    from gtda.plotting import plot_diagram
+
+    fig, ax = plt.subplots()
+    rips.plot(diagrams, ax=ax, show=False)
+    ax.set_title(f'Diagramas de Persistencia para {fruta}')
+    st.pyplot(fig)
 
 
 # === Footer ===
