@@ -44,23 +44,28 @@ data['year'] = data['report_date'].dt.year
 data['month'] = data['report_date'].dt.month
 data['day'] = data['report_date'].dt.day
 
-# === Selectores separados ===
+# Título
 st.markdown("### 📅 Seleccione una fecha:")
 
-# Año
-años_disponibles = sorted(data['year'].unique(), reverse=True)
-año_seleccionado = st.selectbox("Año", años_disponibles)
+# Crear columnas para año, mes y día
+col1, col2, col3 = st.columns(3)
 
-# Mes
-meses_disponibles = sorted(data[data['year'] == año_seleccionado]['month'].unique())
-mes_seleccionado = st.selectbox("Mes", meses_disponibles)
+with col1:
+    años_disponibles = sorted(data['year'].unique(), reverse=True)
+    año_seleccionado = st.selectbox("Año", años_disponibles)
 
-# Día
-días_disponibles = sorted(
-    data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(),
-    reverse=True
-)
-día_seleccionado = st.selectbox("Día", días_disponibles)
+with col2:
+    meses_disponibles = sorted(
+        data[data['year'] == año_seleccionado]['month'].unique()
+    )
+    mes_seleccionado = st.selectbox("Mes", meses_disponibles, format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
+
+with col3:
+    días_disponibles = sorted(
+        data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(),
+        reverse=True
+    )
+    día_seleccionado = st.selectbox("Día", días_disponibles)
 
 # Construir fecha final seleccionada
 fecha_seleccionada = datetime(año_seleccionado, mes_seleccionado, día_seleccionado).date()
