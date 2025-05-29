@@ -246,7 +246,7 @@ with tab2:
     st.subheader("🔻 Diagrama de Persistencia - Rips directo")
     diagrams = homology_persistence_pipeline.fit_transform(serie)
 
-    import matplotlib.pyplot as plt
+
     from gtda.plotting import plot_diagram
 
     fig, ax = plt.subplots()
