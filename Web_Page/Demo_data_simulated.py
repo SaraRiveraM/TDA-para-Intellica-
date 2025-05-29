@@ -108,8 +108,8 @@ with tab1:
     if not df_historico.empty:
         df_historico['month'] = df_historico['report_date'].dt.month_name()
         monthly_avg = df_historico.groupby('month')[['price']].mean().reindex([
-            'January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December'
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'May0', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
         ])
         st.write("Promedio mensual de precios:")
         st.bar_chart(monthly_avg)
@@ -144,8 +144,8 @@ with tab1:
             columns='year',
             aggfunc='mean'
         ).reindex([
-            'January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December'
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
         ])
 
         st.dataframe(pivot_table.style.background_gradient(cmap='YlOrRd'))
@@ -170,9 +170,6 @@ with tab2:
     data_f = data_f.sort_values("report_date")
     serie = data_f["price"].values.reshape(-1, 1)
 
-    # === Mostrar serie original ===
-    st.subheader("📉 Serie de Precios")
-    st.line_chart(data_f.set_index("report_date")["price"])
 
     # ===========================
     # === Pipelines definidos ===
