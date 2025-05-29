@@ -155,7 +155,6 @@ with tab1:
 # === TAB 2 - Topología
 # ========================
 with tab2:
-    
     st.header("🔺 Análisis Topológico de Series Temporales")
 
     # === Lectura según fruta seleccionada ===
@@ -170,110 +169,103 @@ with tab2:
     data_f = data_f.sort_values("report_date")
     serie = data_f["price"].values.reshape(-1, 1)
 
+    st.subheader("📉 Serie de Precios")
+    st.line_chart(data_f.set_index("report_date")["price"])
 
-    # ===========================
-    # === Pipelines definidos ===
-    # ===========================
+    # Tabs internos para cada pipeline
+    tab_te, tab_sw, tab_rips = st.tabs(["Takens Embedding", "Sliding Windows", "Rips Directo"])
 
+    with tab_te:
+        st.subheader("🔹 Takens Embedding")
 
-    # --- Takens Embedding pipeline ---
-    embedding_dimension = 5
-    embedding_time_delay = 5
-    stride = 2
+        embedding_dimension = 5
+        embedding_time_delay = 5
+        stride = 2
 
-    embedder = TakensEmbedding(time_delay=embedding_time_delay,
-                               dimension=embedding_dimension,
-                               stride=stride)
+        embedder = TakensEmbedding(time_delay=embedding_time_delay,
+                                   dimension=embedding_dimension,
+                                   stride=stride)
+        batch_pca = CollectionTransformer(PCA(n_components=3), n_jobs=-1)
+        persistence = VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
+        scaling = Scaler()
+        entropy = PersistenceEntropy(normalize=True, nan_fill_value=-10)
 
-    batch_pca = CollectionTransformer(PCA(n_components=3), n_jobs=-1)
-    persistence = VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
-    scaling = Scaler()
-    entropy = PersistenceEntropy(normalize=True, nan_fill_value=-10)
+        steps_te = [
+            ("embedder", embedder),
+            ("pca", batch_pca),
+            ("persistence", persistence),
+            ("scaling", scaling),
+            ("entropy", entropy)
+        ]
 
-    steps_te = [
-        ("embedder", embedder),
-        ("pca", batch_pca),
-        ("persistence", persistence),
-        ("scaling", scaling),
-        ("entropy", entropy)
-    ]
+        topological_transfomer_te = Pipeline(steps_te)
+        resultado_te = topological_transfomer_te.fit_transform(serie)
+        te_df = pd.DataFrame(resultado_te, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
+        st.line_chart(te_df)
+        st.caption(f"""
+        Evolución de la entropía de persistencia por dimensión topológica (0=componentes, 1=bucles, 2=cavidades).
+        Embedding: dim={embedding_dimension}, delay={embedding_time_delay}, stride={stride}
+        """)
 
-    topological_transfomer_te = Pipeline(steps_te)
+    with tab_sw:
+        st.subheader("🔸 Sliding Windows")
 
-    # --- Sliding Window pipeline ---
-    window_size = 30
-    stride = 10
+        window_size = 30
+        stride = 10
 
-    steps_sw = [
-        ("window", CollectionTransformer(SlidingWindow(size=window_size, stride=stride))),
-        ("pca", CollectionTransformer(PCA(n_components=3), n_jobs=-1)),
-        ("persistence", VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)),
-        ("scaling", Scaler()),
-        ("entropy", PersistenceEntropy(normalize=True, nan_fill_value=-10))
-    ]
+        steps_sw = [
+            ("window", CollectionTransformer(SlidingWindow(size=window_size, stride=stride))),
+            ("pca", CollectionTransformer(PCA(n_components=3), n_jobs=-1)),
+            ("persistence", VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)),
+            ("scaling", Scaler()),
+            ("entropy", PersistenceEntropy(normalize=True, nan_fill_value=-10))
+        ]
 
-    topological_transformer_sw = Pipeline(steps_sw)
+        topological_transformer_sw = Pipeline(steps_sw)
+        resultado_sw = topological_transformer_sw.fit_transform(serie)
+        sw_df = pd.DataFrame(resultado_sw, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
+        st.line_chart(sw_df)
+        st.caption(f"""
+        Evolución temporal de características topológicas (ventana={window_size}, stride={stride}).
+        Las fluctuaciones indican cambios en la estructura topológica subyacente.
+        """)
 
-    # --- Rips clásico pipeline ---
-    def calcular_persistencia(X, maxdim=2):
-        X_2d = np.array(X).reshape(-1, 1)
-        rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
-        return rips.fit_transform([X_2d])[0]  # Devuelve solo el primer diagrama
+    with tab_rips:
+        st.subheader("🔻 Diagrama de Persistencia - Rips directo")
 
+        def calcular_persistencia(X, maxdim=2):
+            X_2d = np.array(X).reshape(-1, 1)
+            rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
+            return rips.fit_transform([X_2d])[0]
 
-    homology_persistence_pipeline = Pipeline([
-        ('persistencia', FunctionTransformer(
-            calcular_persistencia,
-            kw_args={'maxdim': 2}
-        ))
-    ])
+        homology_persistence_pipeline = Pipeline([
+            ('persistencia', FunctionTransformer(
+                calcular_persistencia,
+                kw_args={'maxdim': 2}
+            ))
+        ])
 
-    # ===============================
-    # === Resultados de análisis ===
-    # ===============================
+        diagrams = homology_persistence_pipeline.fit_transform(serie)
 
-    st.subheader("🔹 Takens Embedding")
-    resultado_te = topological_transfomer_te.fit_transform(serie)
-    te_df = pd.DataFrame(resultado_te, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
-    st.line_chart(te_df)
-    st.caption("""
-    Evolución de la entropía de persistencia por dimensión topológica (0=componentes, 1=bucles, 2=cavidades).
-    Embedding: dim={}, delay={}, stride={}
-    """.format(embedding_dimension, embedding_time_delay, stride))
+        from gtda.plotting import plot_diagram
+        fig, ax = plt.subplots(figsize=(10, 6))
+        plot_diagram(diagrams, ax=ax)
+        ax.set_title(f'Diagrama de Persistencia para {fruta}')
+        ax.set_xlabel('Tiempo de nacimiento')
+        ax.set_ylabel('Tiempo de muerte')
+        ax.grid(True, linestyle='--', alpha=0.6)
 
-    st.subheader("🔸 Sliding Windows")
-    resultado_sw = topological_transformer_sw.fit_transform(serie)
-    sw_df = pd.DataFrame(resultado_sw, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
-    st.line_chart(sw_df)
-    st.caption(f"""
-    Evolución temporal de características topológicas (ventana={window_size}, stride={stride}).
-    Las fluctuaciones indican cambios en la estructura topológica subyacente.
-    """)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, ['Dimensión 0', 'Dimensión 1', 'Dimensión 2'],
+                  title='Dimensión Homológica',
+                  bbox_to_anchor=(1.05, 1), 
+                  loc='upper left')
 
-    st.subheader("🔻 Diagrama de Persistencia - Rips directo")
-    diagrams = homology_persistence_pipeline.fit_transform(serie)
-
-    from gtda.plotting import plot_diagram
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    plot_diagram(diagrams[0], ax=ax)  # diagrams[0] porque es una lista de un elemento
-    ax.set_title(f'Diagrama de Persistencia para {fruta}')
-    ax.set_xlabel('Tiempo de nacimiento')
-    ax.set_ylabel('Tiempo de muerte')
-    ax.grid(True, linestyle='--', alpha=0.6)
-
-    # Mejorar leyenda
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, ['Dimensión 0', 'Dimensión 1', 'Dimensión 2'], 
-            title='Dimensión Homológica',
-            bbox_to_anchor=(1.05, 1), 
-            loc='upper left')
-
-    st.pyplot(fig, bbox_inches='tight', use_container_width=True)
-    st.caption("""
-    Diagrama que muestra los ciclos topológicos (puntos) y su persistencia.
-    Puntos lejos de la diagonal representan características topológicas persistentes.
-    """)
+        st.pyplot(fig, bbox_inches='tight', use_container_width=True)
+        st.caption("""
+        Diagrama que muestra los ciclos topológicos (puntos) y su persistencia.
+        Puntos lejos de la diagonal representan características topológicas persistentes.
+        """)
 
 
 # === Footer ===
