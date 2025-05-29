@@ -71,22 +71,35 @@ with tab1:
 
     st.markdown("### 📅 Seleccione una fecha:")
     col1, col2, col3 = st.columns(3)
+
     with col1:
-        días_disponibles = sorted(data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(), reverse=True)
+        días_disponibles = sorted(data['day'].unique())
         día_seleccionado = st.selectbox("Día", días_disponibles)
+
     with col2:
-        meses_disponibles = sorted(data[data['year'] == año_seleccionado]['month'].unique())
-        mes_seleccionado = st.selectbox("Mes", meses_disponibles, format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
+        meses_disponibles = sorted(
+            data[data['day'] == día_seleccionado]['month'].unique()
+        )
+        mes_seleccionado = st.selectbox(
+            "Mes",
+            meses_disponibles,
+            format_func=lambda x: datetime(1900, x, 1).strftime('%B')
+        )
+
     with col3:
-        años_disponibles = sorted(data['year'].unique(), reverse=True)
+        años_disponibles = sorted(
+            data[(data['day'] == día_seleccionado) & (data['month'] == mes_seleccionado)]['year'].unique(),
+            reverse=True
+        )
         año_seleccionado = st.selectbox("Año", años_disponibles)
-        
 
-    fecha_seleccionada = datetime(año_seleccionado, mes_seleccionado, día_seleccionado).date()
-    st.write(f"📌 Fecha seleccionada: `{fecha_seleccionada}`")
+            
 
-    df_filtrado = data[(data['commodity'] == fruta_dict[fruta]) & 
-                       (data['report_date'].dt.date == fecha_seleccionada)]
+        fecha_seleccionada = datetime(año_seleccionado, mes_seleccionado, día_seleccionado).date()
+        st.write(f"📌 Fecha seleccionada: `{fecha_seleccionada}`")
+
+        df_filtrado = data[(data['commodity'] == fruta_dict[fruta]) & 
+                        (data['report_date'].dt.date == fecha_seleccionada)]
 
     if not df_filtrado.empty:
         st.success("📊 Datos encontrados:")
