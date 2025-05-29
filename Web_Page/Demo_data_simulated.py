@@ -50,8 +50,8 @@ with st.sidebar:
     fruta = st.radio("Seleccione una fruta:", ["Zarzamora", "Mora Azul"])
 
 fruta_dict = {
-    "Zarzamora": "Blackberries",
-    "Mora Azul": "Blueberries"
+    "zarzamora": "Blackberries",
+    "mora azul": "Blueberries"
 }
 
 # === Tabs ===
@@ -64,7 +64,7 @@ tab1, tab2 = st.tabs([
 # === TAB 1 - Exploración
 # ========================
 with tab1:
-    st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación de los Cambios Abruptos de los Precios de la - {fruta} 💹</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación de los Cambios Abruptos de los Precios de la  {fruta} 💹</h1>", unsafe_allow_html=True)
     st.markdown("---")
     st.subheader("🔍 Consulta histórica de precios")
 
@@ -270,9 +270,10 @@ with tab2:
         try:
             with st.spinner("Generando diagramas..."):
                 diagrams = rips_pipeline.fit_transform(serie)
-                
+                from gtda.plotting import plot_diagram
+
                 fig, ax = plt.subplots(figsize=(8, 8))
-                #plot_diagram(diagrams, ax=ax)
+                st.plotly_chart(plot_diagram(diagrams[0]))
                 ax.set_title(f'Diagrama de Persistencia - {fruta}')
                 ax.set_xlabel('Nacimiento')
                 ax.set_ylabel('Muerte')
