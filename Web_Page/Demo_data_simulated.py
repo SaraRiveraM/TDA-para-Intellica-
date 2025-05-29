@@ -25,6 +25,9 @@ from ripser import Rips
 from sklearn.preprocessing import FunctionTransformer
 from gtda.homology import VietorisRipsPersistence
 import seaborn as sns 
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import MinMaxScaler
+
 
 # === Initial configuration ===
 st.set_page_config(
@@ -169,118 +172,175 @@ with tab1:
 # ========================
 # === TAB 2 - Topología
 # ========================
+# Custom transformer for collection handling
+class CollectionTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, estimator, n_jobs=None):
+        self.estimator = estimator
+        self.n_jobs = n_jobs
+        
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        return np.array([self.estimator.fit_transform(x) for x in X])
+
+# === Tab 2 - Topología ===
 with tab2:
     st.header("🔺 Análisis Topológico de Series Temporales")
-
-    # === Lectura según fruta seleccionada ===
+    
+    # === Data Loading ===
     fruta_nombre = fruta_dict[fruta]
-
     if fruta_nombre == "Blueberries":
         data_f = pd.read_csv("C:/Users/52452/Downloads/blueberry_prices.csv")
     else:
         data_f = pd.read_csv("C:/Users/52452/Downloads/blackberry_prices.csv")
-
+    
     data_f['report_date'] = pd.to_datetime(data_f['report_date'])
     data_f = data_f.sort_values("report_date")
     serie = data_f["price"].values.reshape(-1, 1)
-
-    st.subheader("📉 Serie de Precios")
-    st.line_chart(data_f.set_index("report_date")["price"])
-
-    # Tabs internos para cada pipeline
-    tab_te, tab_sw, tab_rips = st.tabs(["Takens Embedding", "Sliding Windows", "Rips Directo"])
-
-    with tab_te:
-        st.subheader("🔹 Takens Embedding")
-
-        embedding_dimension = 5
-        embedding_time_delay = 5
-        stride = 2
-
-        embedder = TakensEmbedding(time_delay=embedding_time_delay,
-                                   dimension=embedding_dimension,
-                                   stride=stride)
-        batch_pca = CollectionTransformer(PCA(n_components=3), n_jobs=-1)
-        persistence = VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
-        scaling = Scaler()
-        entropy = PersistenceEntropy(normalize=True, nan_fill_value=-10)
-
-        steps_te = [
-            ("embedder", embedder),
-            ("pca", batch_pca),
-            ("persistence", persistence),
-            ("scaling", scaling),
-            ("entropy", entropy)
-        ]
-
-        topological_transfomer_te = Pipeline(steps_te)
-        resultado_te = topological_transfomer_te.fit_transform(serie)
-        te_df = pd.DataFrame(resultado_te, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
-        st.line_chart(te_df)
-        st.caption(f"""
-        Evolución de la entropía de persistencia por dimensión topológica (0=componentes, 1=bucles, 2=cavidades).
-        Embedding: dim={embedding_dimension}, delay={embedding_time_delay}, stride={stride}
-        """)
-
-    with tab_sw:
-        st.subheader("🔸 Sliding Windows")
-
-        window_size = 30
-        stride = 10
-
-        steps_sw = [
-            ("window", CollectionTransformer(SlidingWindow(size=window_size, stride=stride))),
-            ("pca", CollectionTransformer(PCA(n_components=3), n_jobs=-1)),
-            ("persistence", VietorisRipsPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)),
-            ("scaling", Scaler()),
-            ("entropy", PersistenceEntropy(normalize=True, nan_fill_value=-10))
-        ]
-
-        topological_transformer_sw = Pipeline(steps_sw)
-        resultado_sw = topological_transformer_sw.fit_transform(serie)
-        sw_df = pd.DataFrame(resultado_sw, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
-        st.line_chart(sw_df)
-        st.caption(f"""
-        Evolución temporal de características topológicas (ventana={window_size}, stride={stride}).
-        Las fluctuaciones indican cambios en la estructura topológica subyacente.
-        """)
-
-    with tab_rips:
-        st.subheader("🔻 Diagrama de Persistencia - Rips directo")
-
-        def calcular_persistencia(X, maxdim=2):
-            X_2d = np.array(X).reshape(-1, 1)
-            rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
-            return rips.fit_transform([X_2d])[0]
-
-        homology_persistence_pipeline = Pipeline([
-            ('persistencia', FunctionTransformer(
-                calcular_persistencia,
-                kw_args={'maxdim': 2}
-            ))
-        ])
-
-        diagrams = homology_persistence_pipeline.fit_transform(serie)
-
-        from gtda.plotting import plot_diagram
-        fig, ax = plt.subplots(figsize=(10, 6))
-        plot_diagram(diagrams, ax=ax)
-        ax.set_title(f'Diagrama de Persistencia para {fruta}')
-        ax.set_xlabel('Tiempo de nacimiento')
-        ax.set_ylabel('Tiempo de muerte')
-        ax.grid(True, linestyle='--', alpha=0.6)
-
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, ['Dimensión 0', 'Dimensión 1', 'Dimensión 2'],
-                  title='Dimensión Homológica',
-                  bbox_to_anchor=(1.05, 1), 
-                  loc='upper left')
-
-        st.pyplot(fig, bbox_inches='tight', use_container_width=True)
-        st.caption("""
-        Diagrama que muestra los ciclos topológicos (puntos) y su persistencia.
-        Puntos lejos de la diagonal representan características topológicas persistentes.
-        """)
+    
+    # === Parameter Configuration ===
+    with st.expander("⚙️ Configuración de Parámetros", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            embedding_dim = st.slider("Dimensión Embedding", 2, 5, 3, key='embed_dim')
+            embedding_delay = st.slider("Time Delay", 1, 10, 2, key='embed_delay')
+            te_stride = st.slider("Stride Embedding", 1, 5, 1, key='te_stride')
+        with col2:
+            window_size = st.slider("Tamaño Ventana", 10, 60, 30, key='window_size')
+            sw_stride = st.slider("Stride Ventana", 1, 20, 5, key='sw_stride')
+            max_homology = st.slider("Dimensión Homológica Máxima", 1, 3, 2, key='max_hom')
+    
+    # === Pipeline Definitions ===
+    # 1. Takens Embedding Pipeline
+    te_pipeline = Pipeline([
+        ("embedding", TakensEmbedding(
+            time_delay=embedding_delay,
+            dimension=embedding_dim,
+            stride=te_stride
+        )),
+        ("pca", CollectionTransformer(PCA(n_components=3)) if embedding_dim > 3 else ("passthrough", "passthrough")),
+        ("persistence", VietorisRipsPersistence(
+            homology_dimensions=list(range(max_homology + 1))),
+        ),
+        ("scaling", Scaler()),
+        ("entropy", PersistenceEntropy(normalize=True))
+    ], memory=None)
+    
+    # 2. Sliding Window Pipeline
+    sw_pipeline = Pipeline([
+        ("window", SlidingWindow(
+            size=window_size,
+            stride=sw_stride
+        )),
+        ("pca", CollectionTransformer(PCA(n_components=3))),
+        ("persistence", VietorisRipsPersistence(
+            homology_dimensions=list(range(max_homology + 1)),
+        )),
+        ("scaling", Scaler()),
+        ("entropy", PersistenceEntropy(normalize=True))
+    ], memory=None)
+    
+    # 3. Direct Rips Pipeline
+    def calcular_persistencia(X, maxdim):
+        X_2d = np.array(X).reshape(-1, 1)
+        rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
+        return rips.fit_transform([X_2d])[0]
+    
+    rips_pipeline = Pipeline([
+        ('persistence', FunctionTransformer(
+            calcular_persistencia,
+            kw_args={'maxdim': max_homology}
+        ))
+    ])
+    
+    # === Visualization in Tabs ===
+    te_tab, sw_tab, rips_tab = st.tabs([
+        "🔄 Takens Embedding", 
+        "📊 Sliding Windows", 
+        "🔷 Diagramas Persistencia"
+    ])
+    
+    with te_tab:
+        st.subheader("Análisis con Takens Embedding")
+        try:
+            with st.spinner("Calculando embedding..."):
+                te_result = te_pipeline.fit_transform(serie)
+                te_df = pd.DataFrame(te_result, columns=[f'Dim_{i}' for i in range(te_result.shape[1])])
+                
+                fig, ax = plt.subplots(figsize=(10, 4))
+                for col in te_df.columns:
+                    ax.plot(te_df[col], label=col)
+                ax.set_title("Evolución de Características Topológicas")
+                ax.set_xlabel("Ventana Temporal")
+                ax.set_ylabel("Valor Normalizado")
+                ax.legend()
+                ax.grid(True, linestyle='--', alpha=0.6)
+                st.pyplot(fig)
+                
+                st.markdown("""
+                **Interpretación:**
+                - Cada línea representa una dimensión homológica
+                - Picos indican aparición de características topológicas significativas
+                """)
+        except Exception as e:
+            st.error(f"Error en Takens Embedding: {str(e)}")
+            st.info("Intenta reducir la dimensión o aumentar el time delay")
+    
+    with sw_tab:
+        st.subheader("Análisis con Sliding Windows")
+        try:
+            with st.spinner("Procesando ventanas..."):
+                sw_result = sw_pipeline.fit_transform(serie)
+                sw_df = pd.DataFrame(sw_result, columns=[f'Dim_{i}' for i in range(sw_result.shape[1])])
+                
+                fig, ax = plt.subplots(figsize=(10, 4))
+                for col in sw_df.columns:
+                    ax.plot(sw_df[col], label=col)
+                ax.set_title("Evolución por Ventanas Deslizantes")
+                ax.set_xlabel("Ventana")
+                ax.set_ylabel("Valor Normalizado")
+                ax.legend()
+                ax.grid(True, linestyle='--', alpha=0.6)
+                st.pyplot(fig)
+                
+                st.markdown("""
+                **Interpretación:**
+                - Muestra cómo cambian las características topológicas en el tiempo
+                - Ventana más pequeña = mayor resolución temporal
+                """)
+        except Exception as e:
+            st.error(f"Error en Sliding Window: {str(e)}")
+            st.info("Intenta reducir el tamaño de la ventana o aumentar el stride")
+    
+    with rips_tab:
+        st.subheader("Diagramas de Persistencia")
+        try:
+            with st.spinner("Generando diagramas..."):
+                diagrams = rips_pipeline.fit_transform(serie)
+                
+                fig, ax = plt.subplots(figsize=(8, 8))
+                plot_diagram(diagrams, ax=ax)
+                ax.set_title(f'Diagrama de Persistencia - {fruta}')
+                ax.set_xlabel('Nacimiento')
+                ax.set_ylabel('Muerte')
+                ax.grid(True, linestyle='--', alpha=0.6)
+                st.pyplot(fig)
+                
+                st.markdown("""
+                **Interpretación:**
+                - Puntos lejos de la diagonal = características persistentes
+                - Color indica dimensión homológica (0=componentes, 1=bucles, etc.)
+                """)
+        except Exception as e:
+            st.error(f"Error en diagramas de persistencia: {str(e)}")
+    
+    # === Data Summary ===
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Resumen de Datos")
+    st.sidebar.write(f"📅 Rango temporal: {data_f['report_date'].min().date()} a {data_f['report_date'].max().date()}")
+    st.sidebar.write(f"🔢 Puntos de datos: {len(serie)}")
+    st.sidebar.write(f"💰 Rango de precios: ${serie.min()[0]:.2f} - ${serie.max()[0]:.2f}")
 
 
 # === Footer ===
