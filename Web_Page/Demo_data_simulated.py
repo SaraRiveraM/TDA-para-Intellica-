@@ -108,7 +108,7 @@ with tab1:
         st.success("📊 Datos encontrados:")
 
     # =============== 📅 Análisis Estacional ===============
-    st.markdown("---")
+    st.markdown("----")
     st.subheader("📅 Análisis estacional")
 
     # Mapeo manual de meses en español si locale falla
