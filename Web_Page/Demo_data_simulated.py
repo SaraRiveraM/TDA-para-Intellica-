@@ -13,7 +13,6 @@ import plotly.graph_objects as go
 from sklearn.decomposition import PCA
 from gtda.time_series import SlidingWindow
 from gtda.diagrams import PersistenceEntropy, Scaler
-from gtda.homology import VietorisRipsPersistence
 from gtda.metaestimators import CollectionTransformer
 from gtda.pipeline import Pipeline
 from gtda.time_series import SlidingWindow
@@ -24,7 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from ripser import Rips
 from sklearn.preprocessing import FunctionTransformer
-from gtda.homology import VietorisRipsPersistence, Rips
+from gtda.homology import VietorisRipsPersistence
 from gtda.pipeline import make_pipeline
 from gtda.pipeline import Pipeline as GtdaPipeline
 from gtda.utils import DatasetTransformer
@@ -227,8 +226,10 @@ with tab2:
 
     # --- Rips clásico pipeline ---
     def calcular_persistencia(X, maxdim=2):
-        X_2d = np.array(X).reshape(-1, 1)  
-        return Rips(maxdim=maxdim).fit_transform(X_2d)
+        X_2d = np.array(X).reshape(-1, 1)
+        rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
+        return rips.fit_transform([X_2d])[0]  # Devuelve solo el primer diagrama
+
 
     homology_persistence_pipeline = Pipeline([
         ('persistencia', FunctionTransformer(
