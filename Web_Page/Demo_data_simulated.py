@@ -211,6 +211,9 @@ with tab2:
             sw_stride = st.slider("Stride Ventana", 1, 20, 5, key='sw_stride')
             max_homology = st.slider("Dimensión Homológica Máxima", 1, 3, 2, key='max_hom')
     
+    # Convertir a lista las dimensiones homológicas
+    homology_dims = list(range(max_homology + 1))  # Conversión explícita a lista
+    
     # === Pipeline Definitions ===
     # 1. Takens Embedding Pipeline
     te_pipeline = Pipeline([
@@ -221,8 +224,8 @@ with tab2:
         )),
         ("pca", CollectionTransformer(PCA(n_components=3)) if embedding_dim > 3 else ("passthrough", "passthrough")),
         ("persistence", VietorisRipsPersistence(
-            homology_dimensions=list(range(max_homology + 1))),
-        ),
+            homology_dimensions=homology_dims  # Usamos la lista convertida
+        )),
         ("scaling", Scaler()),
         ("entropy", PersistenceEntropy(normalize=True))
     ], memory=None)
@@ -235,16 +238,17 @@ with tab2:
         )),
         ("pca", CollectionTransformer(PCA(n_components=3))),
         ("persistence", VietorisRipsPersistence(
-            homology_dimensions=list(range(max_homology + 1)),
+            homology_dimensions=homology_dims  # Usamos la lista convertida
         )),
         ("scaling", Scaler()),
         ("entropy", PersistenceEntropy(normalize=True))
     ], memory=None)
     
-    # 3. Direct Rips Pipeline
+    # 3. Direct Rips Pipeline - Versión corregida
     def calcular_persistencia(X, maxdim):
         X_2d = np.array(X).reshape(-1, 1)
-        rips = VietorisRipsPersistence(homology_dimensions=range(maxdim + 1))
+        homology_dims = list(range(maxdim + 1))  # Conversión a lista aquí también
+        rips = VietorisRipsPersistence(homology_dimensions=homology_dims)
         return rips.fit_transform([X_2d])[0]
     
     rips_pipeline = Pipeline([
@@ -260,58 +264,6 @@ with tab2:
         "📊 Sliding Windows", 
         "🔷 Diagramas Persistencia"
     ])
-    
-    with te_tab:
-        st.subheader("Análisis con Takens Embedding")
-        try:
-            with st.spinner("Calculando embedding..."):
-                te_result = te_pipeline.fit_transform(serie)
-                te_df = pd.DataFrame(te_result, columns=[f'Dim_{i}' for i in range(te_result.shape[1])])
-                
-                fig, ax = plt.subplots(figsize=(10, 4))
-                for col in te_df.columns:
-                    ax.plot(te_df[col], label=col)
-                ax.set_title("Evolución de Características Topológicas")
-                ax.set_xlabel("Ventana Temporal")
-                ax.set_ylabel("Valor Normalizado")
-                ax.legend()
-                ax.grid(True, linestyle='--', alpha=0.6)
-                st.pyplot(fig)
-                
-                st.markdown("""
-                **Interpretación:**
-                - Cada línea representa una dimensión homológica
-                - Picos indican aparición de características topológicas significativas
-                """)
-        except Exception as e:
-            st.error(f"Error en Takens Embedding: {str(e)}")
-            st.info("Intenta reducir la dimensión o aumentar el time delay")
-    
-    with sw_tab:
-        st.subheader("Análisis con Sliding Windows")
-        try:
-            with st.spinner("Procesando ventanas..."):
-                sw_result = sw_pipeline.fit_transform(serie)
-                sw_df = pd.DataFrame(sw_result, columns=[f'Dim_{i}' for i in range(sw_result.shape[1])])
-                
-                fig, ax = plt.subplots(figsize=(10, 4))
-                for col in sw_df.columns:
-                    ax.plot(sw_df[col], label=col)
-                ax.set_title("Evolución por Ventanas Deslizantes")
-                ax.set_xlabel("Ventana")
-                ax.set_ylabel("Valor Normalizado")
-                ax.legend()
-                ax.grid(True, linestyle='--', alpha=0.6)
-                st.pyplot(fig)
-                
-                st.markdown("""
-                **Interpretación:**
-                - Muestra cómo cambian las características topológicas en el tiempo
-                - Ventana más pequeña = mayor resolución temporal
-                """)
-        except Exception as e:
-            st.error(f"Error en Sliding Window: {str(e)}")
-            st.info("Intenta reducir el tamaño de la ventana o aumentar el stride")
     
     with rips_tab:
         st.subheader("Diagramas de Persistencia")
@@ -330,10 +282,14 @@ with tab2:
                 st.markdown("""
                 **Interpretación:**
                 - Puntos lejos de la diagonal = características persistentes
-                - Color indica dimensión homológica (0=componentes, 1=bucles, etc.)
+                - Color indica dimensión homológica:
+                  - Azul: Componentes conexas (H0)
+                  - Naranja: Bucles (H1)
+                  - Verde: Cavidades (H2)
                 """)
         except Exception as e:
             st.error(f"Error en diagramas de persistencia: {str(e)}")
+            st.info("Verifica que los datos tengan suficiente variabilidad")
     
     # === Data Summary ===
     st.sidebar.markdown("---")
