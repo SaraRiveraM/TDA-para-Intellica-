@@ -104,30 +104,33 @@ with tab1:
     if not df_filtrado.empty:
         st.success("📊 Datos encontrados:")
 
-    # Series temporales
-    st.markdown("---")
-    st.subheader("📈 Evolución histórica de precios")
-
-    df_historico = data[data['commodity'] == fruta_dict[fruta]]
-    if not df_historico.empty:
-        df_historico = df_historico.sort_values('report_date')
-        st.line_chart(df_historico.set_index('report_date')[['price']])
-    else:
-        st.warning("No hay datos históricos disponibles")
-
-    # Análisis estacional
+    # =============== 📅 Análisis Estacional ===============
     st.markdown("---")
     st.subheader("📅 Análisis estacional")
 
-    if not df_historico.empty:
-        df_historico['month'] = df_historico['report_date'].dt.month_name()
-        monthly_avg = df_historico.groupby('month')[['price']].mean().reindex([
-            'Enero', 'Febrero', 'Marzo', 'Abril', 'May0', 'Junio',
+    # Mapeo manual de meses en español si locale falla
+    month_translation = {
+        'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo',
+        'April': 'Abril', 'May': 'Mayo', 'June': 'Junio',
+        'July': 'Julio', 'August': 'Agosto', 'September': 'Septiembre',
+        'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
+    }
+
+    # Solo si hay datos
+    if not data.empty:
+        data['month'] = data['report_date'].dt.month_name().map(month_translation)
+
+        orden_meses = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-        ])
+        ]
+
+        # === 📊 Promedio mensual ===
+        monthly_avg = data.groupby('month')[['price']].mean().reindex(orden_meses)
         st.write("Promedio mensual de precios:")
         st.bar_chart(monthly_avg)
 
+        # === 📈 Métricas destacadas ===
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Precio máximo histórico", f"${monthly_avg['price'].max():.2f}")
@@ -136,6 +139,7 @@ with tab1:
             st.metric("Precio mínimo histórico", f"${monthly_avg['price'].min():.2f}")
             st.metric("Mes con menor precio", monthly_avg['price'].idxmin())
 
+        # === 🧠 Interpretación ===
         st.markdown("""
         ### Interpretación:
         - Los meses con precios más altos indican menor disponibilidad
@@ -143,26 +147,23 @@ with tab1:
         - La diferencia muestra la volatilidad del mercado
         """)
 
-    # Heatmap
-    if st.checkbox("Mostrar mapa de calor por meses y años"):
-        st.markdown("---")
-        st.subheader("🌡️ Mapa de calor de precios")
+        # =============== 🌡️ Heatmap ===============
+        if st.checkbox("Mostrar mapa de calor por meses y años"):
+            st.markdown("---")
+            st.subheader("🌡️ Mapa de calor de precios")
 
-        df_heatmap = df_historico.copy()
-        df_heatmap['year'] = df_heatmap['report_date'].dt.year
-        df_heatmap['month'] = df_heatmap['report_date'].dt.month_name()
+            df_heatmap = data.copy()
+            df_heatmap['year'] = df_heatmap['report_date'].dt.year
+            df_heatmap['month'] = df_heatmap['report_date'].dt.month_name().map(month_translation)
 
-        pivot_table = df_heatmap.pivot_table(
-            values='high_price',
-            index='month',
-            columns='year',
-            aggfunc='mean'
-        ).reindex([
-            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-        ])
+            pivot_table = df_heatmap.pivot_table(
+                values='high_price',
+                index='month',
+                columns='year',
+                aggfunc='mean'
+            ).reindex(orden_meses)
 
-        st.dataframe(pivot_table.style.background_gradient(cmap='YlOrRd'))
+            st.dataframe(pivot_table.style.background_gradient(cmap='YlOrRd'))
 
 
 # ========================
