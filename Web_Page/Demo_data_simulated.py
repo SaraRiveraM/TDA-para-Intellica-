@@ -34,18 +34,38 @@ st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación
 st.markdown("---")  # Línea separadora
 st.subheader("🔍 Consulta histórica de precios")
 
-# Convertir la columna de fecha a datetime
+# === Select the date ===
+
+# Asegurar formato datetime
 data['report_date'] = pd.to_datetime(data['report_date'])
 
-# Obtener fechas únicas
-fechas_disponibles = data['report_date'].dt.date.unique()
+# Extraer componentes de fecha
+data['year'] = data['report_date'].dt.year
+data['month'] = data['report_date'].dt.month
+data['day'] = data['report_date'].dt.day
 
-# Selector de fecha
-fecha_seleccionada = st.selectbox(
-    "Seleccione una fecha:",
-    options=sorted(fechas_disponibles, reverse=True),
-    index=0
+# === Selectores separados ===
+st.markdown("### 📅 Seleccione una fecha:")
+
+# Año
+años_disponibles = sorted(data['year'].unique(), reverse=True)
+año_seleccionado = st.selectbox("Año", años_disponibles)
+
+# Mes
+meses_disponibles = sorted(data[data['year'] == año_seleccionado]['month'].unique())
+mes_seleccionado = st.selectbox("Mes", meses_disponibles)
+
+# Día
+días_disponibles = sorted(
+    data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(),
+    reverse=True
 )
+día_seleccionado = st.selectbox("Día", días_disponibles)
+
+# Construir fecha final seleccionada
+fecha_seleccionada = datetime(año_seleccionado, mes_seleccionado, día_seleccionado).date()
+st.write(f"📌 Fecha seleccionada: `{fecha_seleccionada}`")
+
 
 # Consultar datos
 if fruta == "Zarzamora":
@@ -60,7 +80,7 @@ if not df_filtrado.empty:
     st.success("📊 Datos encontrados:")
     
     # Crear columnas para mejor presentación
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     
     with col1:
         st.metric("Precio mínimo", f"${df_filtrado['low_price'].values[0]:.2f}")
