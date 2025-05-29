@@ -65,21 +65,22 @@ with tab1:
     st.markdown("---")
     st.subheader("🔍 Consulta histórica de precios")
 
-    data['year'] = data['report_date'].dt.year
-    data['month'] = data['report_date'].dt.month
     data['day'] = data['report_date'].dt.day
+    data['month'] = data['report_date'].dt.month
+    data['year'] = data['report_date'].dt.year
 
     st.markdown("### 📅 Seleccione una fecha:")
     col1, col2, col3 = st.columns(3)
     with col1:
-        años_disponibles = sorted(data['year'].unique(), reverse=True)
-        año_seleccionado = st.selectbox("Año", años_disponibles)
+        días_disponibles = sorted(data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(), reverse=True)
+        día_seleccionado = st.selectbox("Día", días_disponibles)
     with col2:
         meses_disponibles = sorted(data[data['year'] == año_seleccionado]['month'].unique())
         mes_seleccionado = st.selectbox("Mes", meses_disponibles, format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
     with col3:
-        días_disponibles = sorted(data[(data['year'] == año_seleccionado) & (data['month'] == mes_seleccionado)]['day'].unique(), reverse=True)
-        día_seleccionado = st.selectbox("Día", días_disponibles)
+        años_disponibles = sorted(data['year'].unique(), reverse=True)
+        año_seleccionado = st.selectbox("Año", años_disponibles)
+        
 
     fecha_seleccionada = datetime(año_seleccionado, mes_seleccionado, día_seleccionado).date()
     st.write(f"📌 Fecha seleccionada: `{fecha_seleccionada}`")
