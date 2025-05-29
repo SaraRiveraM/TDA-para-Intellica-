@@ -241,11 +241,11 @@ with tab2:
     # === Resultados de análisis ===
     # ===============================
 
-    st.subheader("🔹 Entropía - Takens Embedding")
+    st.subheader("🔹 Takens Embedding")
     resultado_te = topological_transfomer_te.fit_transform(serie)
     st.line_chart(resultado_te)
 
-    st.subheader("🔸 Entropía - Sliding Windows")
+    st.subheader("🔸 Sliding Windows")
     resultado_sw = topological_transformer_sw.fit_transform(serie)
     st.line_chart(resultado_sw)
 
