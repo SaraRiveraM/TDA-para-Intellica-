@@ -164,7 +164,6 @@ with tab1:
 # ========================
 with tab2:
     
-    with tab2:
     st.header("🔺 Análisis Topológico de Series Temporales")
 
     # === Lectura según fruta seleccionada ===
