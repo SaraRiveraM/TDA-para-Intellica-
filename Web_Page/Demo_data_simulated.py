@@ -57,7 +57,7 @@ fruta_dict = {
 # === Tabs ===
 tab1, tab2 = st.tabs([
     f"🧪 Análisis exploratorio de los precios de la {fruta}",
-    "🧠 Análisis topológico (diagramas de persistencia)"
+    f"🧠 Análisis topológico de {fruta}"
 ])
 
 # ========================
