@@ -155,7 +155,7 @@ if st.checkbox("Mostrar mapa de calor por meses y años"):
     st.subheader("🌡️ Mapa de calor de precios")
     
     df_heatmap = df_historico.copy()
-    df_heatmap['year'] = df_heatmap['date'].dt.year
+    df_heatmap['year'] = df_heatmap['report_date'].dt.year
     
     pivot_table = df_heatmap.pivot_table(
         values='high_price',
