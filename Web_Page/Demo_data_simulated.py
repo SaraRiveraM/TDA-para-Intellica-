@@ -4,18 +4,18 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+# === Initial configuration ===
+st.set_page_config(
+    layout="wide",
+    page_title="Fruits: a Topological Analysis for Intelica"
+)
+
 # === Read the data ===
 @st.cache_data
 def load_data():
     return pd.read_csv("C:/Users/52452/Downloads/Topo2025_prices_USDA.csv")
 
 data = load_data()
-
-# === Initial configuration ===
-st.set_page_config(
-    layout="wide",
-    page_title="Fruits: a Topological Analysis for Intelica"
-)
 
 # === Title and page description ===
 st.markdown("<h1 style='font-size: 60px;'> Intelica </h1>", unsafe_allow_html=True)
@@ -114,7 +114,7 @@ else:
     df_historico = data[data['commodity'] == 'Blueberries']
 
 if not df_historico.empty:
-    df_historico = df_historico.sort_values('date')
+    df_historico = df_historico.sort_values('report_date')
     
     # Gráfico de líneas para precios
     st.line_chart(df_historico.set_index('report_date')[['low_price', 'high_price']])
