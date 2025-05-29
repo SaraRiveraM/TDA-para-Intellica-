@@ -272,7 +272,7 @@ with tab2:
                 diagrams = rips_pipeline.fit_transform(serie)
                 
                 fig, ax = plt.subplots(figsize=(8, 8))
-                ax.plot_diagram(diagrams, ax=ax)
+                #plot_diagram(diagrams, ax=ax)
                 ax.set_title(f'Diagrama de Persistencia - {fruta}')
                 ax.set_xlabel('Nacimiento')
                 ax.set_ylabel('Muerte')
