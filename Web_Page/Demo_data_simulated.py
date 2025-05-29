@@ -28,7 +28,7 @@ with st.sidebar:
     fruta = st.radio("Seleccione una fruta:", ["Zarzamora", "Mora Azul"])
 
 # === TÍTULO PRINCIPAL ===
-st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación Volumen-Precio - {fruta} 💹</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación de los Cambios Abruptos de los Precios de la - {fruta} 💹</h1>", unsafe_allow_html=True)
 
 # === Selector de fecha y precios ===
 st.markdown("---")  # Línea separadora
@@ -116,8 +116,6 @@ if not df_historico.empty:
     # Gráfico de líneas para precios
     st.line_chart(df_historico.set_index('report_date')[['low_price', 'high_price']])
     
-    # Gráfico de barras para volumen
-    st.bar_chart(df_historico.set_index('report_date')['volume'])
 else:
     st.warning("No hay datos históricos disponibles")
 
