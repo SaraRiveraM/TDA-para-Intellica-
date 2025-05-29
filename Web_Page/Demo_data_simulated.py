@@ -157,7 +157,7 @@ with tab1:
             df_heatmap['month'] = df_heatmap['report_date'].dt.month_name().map(month_translation)
 
             pivot_table = df_heatmap.pivot_table(
-                values='high_price',
+                values='price',
                 index='month',
                 columns='year',
                 aggfunc='mean'
