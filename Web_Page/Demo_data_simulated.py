@@ -68,9 +68,6 @@ if not df_filtrado.empty:
     with col2:
         st.metric("Precio máximo", f"${df_filtrado['high_price'].values[0]:.2f}")
     
-    with col3:
-        st.metric("Volumen", f"{df_filtrado['volume'].values[0]:,}")
-    
     # Mostrar variedad si existe
     if 'variety' in df_filtrado.columns:
         st.write(f"**Variedad:** {df_filtrado['variety'].values[0]}")
