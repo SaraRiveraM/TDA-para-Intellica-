@@ -234,22 +234,46 @@ with tab2:
 
     st.subheader("🔹 Takens Embedding")
     resultado_te = topological_transfomer_te.fit_transform(serie)
-    st.line_chart(resultado_te)
+    te_df = pd.DataFrame(resultado_te, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
+    st.line_chart(te_df)
+    st.caption("""
+    Evolución de la entropía de persistencia por dimensión topológica (0=componentes, 1=bucles, 2=cavidades).
+    Embedding: dim={}, delay={}, stride={}
+    """.format(embedding_dimension, embedding_time_delay, stride))
 
     st.subheader("🔸 Sliding Windows")
     resultado_sw = topological_transformer_sw.fit_transform(serie)
-    st.line_chart(resultado_sw)
+    sw_df = pd.DataFrame(resultado_sw, columns=['Entropía_0', 'Entropía_1', 'Entropía_2'])
+    st.line_chart(sw_df)
+    st.caption(f"""
+    Evolución temporal de características topológicas (ventana={window_size}, stride={stride}).
+    Las fluctuaciones indican cambios en la estructura topológica subyacente.
+    """)
 
     st.subheader("🔻 Diagrama de Persistencia - Rips directo")
     diagrams = homology_persistence_pipeline.fit_transform(serie)
 
-
     from gtda.plotting import plot_diagram
 
-    fig, ax = plt.subplots()
-    rips.plot(diagrams, ax=ax, show=False)
-    ax.set_title(f'Diagramas de Persistencia para {fruta}')
-    st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plot_diagram(diagrams[0], ax=ax)  # diagrams[0] porque es una lista de un elemento
+    ax.set_title(f'Diagrama de Persistencia para {fruta}')
+    ax.set_xlabel('Tiempo de nacimiento')
+    ax.set_ylabel('Tiempo de muerte')
+    ax.grid(True, linestyle='--', alpha=0.6)
+
+    # Mejorar leyenda
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, ['Dimensión 0', 'Dimensión 1', 'Dimensión 2'], 
+            title='Dimensión Homológica',
+            bbox_to_anchor=(1.05, 1), 
+            loc='upper left')
+
+    st.pyplot(fig, bbox_inches='tight', use_container_width=True)
+    st.caption("""
+    Diagrama que muestra los ciclos topológicos (puntos) y su persistencia.
+    Puntos lejos de la diagonal representan características topológicas persistentes.
+    """)
 
 
 # === Footer ===
