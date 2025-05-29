@@ -26,7 +26,6 @@ from sklearn.preprocessing import FunctionTransformer
 from gtda.homology import VietorisRipsPersistence
 from gtda.pipeline import make_pipeline
 from gtda.pipeline import Pipeline as GtdaPipeline
-from gtda.utils import DatasetTransformer
 from gtda.mapper import CubicalCover
 from gtda.diagrams import Amplitude
 from gtda.time_series import TimeDelayEmbedding
