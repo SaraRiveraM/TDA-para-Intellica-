@@ -47,7 +47,7 @@ data['report_date'] = pd.to_datetime(data['report_date'])
 with st.sidebar:
     st.image("https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/main/Images/images.png")
     st.markdown("<h1 style='font-size: 20px;'>Elija la fruta a analizar:</h1>", unsafe_allow_html=True)
-    fruta = st.radio("Seleccione una fruta:", ["Zarzamora", "Mora Azul"])
+    fruta = st.radio("Seleccione una fruta:", ["zarzamora", "mora azul"])
 
 fruta_dict = {
     "zarzamora": "Blackberries",
