@@ -106,6 +106,11 @@ with tab1:
 
     if not df_filtrado.empty:
         st.success("📊 Datos encontrados:")
+        
+        
+    # === Mostrar serie original ===
+    st.subheader("📉 Serie de Precios")
+    st.line_chart(data.set_index("report_date")["price"])
 
     # =============== 📅 Análisis Estacional ===============
     st.markdown("----")
