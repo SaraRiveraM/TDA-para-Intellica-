@@ -308,7 +308,7 @@ def load_cnn_model():
     Carga el modelo CNN con manejo robusto de errores
     """
     try:
-        url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/main/Web_Page/Models/modelo_sw.keras"
+        url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/rene/Web_Page/Models/modelo_sw.keras"
         
         # Verificar conectividad
         response = requests.get(url, timeout=30)
@@ -341,7 +341,14 @@ def load_cnn_model():
             os.unlink(tmp_model_path)
         except:
             pass  # No es crítico si no se puede eliminar
-            
+        
+        # Cargar en local
+        try:
+            model = tf.keras.models.load_model("C:/Users/52452/Downloads/modelo_sw.keras")
+        except:
+            raise Exception(f"Tampoco es posible leer el archivo en local.")
+        
+           
         return model
         
     except Exception as e:
