@@ -268,9 +268,13 @@ def prepare_cnn_data_with_tda(serie, method='SW'):
     """
     Prepara los datos de la serie temporal usando transformación TDA para el modelo CNN
     """
-    # Aplicar transformación TDA
-    X_tda = tda_transformation([serie.flatten()], method=method)
-    return X_tda
+    try:
+        # Aplicar transformación TDA
+        X_tda = tda_transformation([serie.flatten()], method=method)
+        return X_tda
+    except Exception as e:
+        print(f"Error en TDA transformation: {e}")
+        return None
 
 # Función para cargar y aplicar el modelo CNN
 @st.cache_resource
@@ -280,7 +284,7 @@ def load_cnn_model():
     """
     try:
         from tensorflow.keras.models import load_model
-        model = load_model("C:/Users/52452/Downloads/modelo_sw.keras")
+        model = load_model("modelo_sw.keras")
         return model
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
@@ -372,8 +376,12 @@ with tab2:
                 st.subheader("📊 Diagrama de Persistencia")
                 
                 with st.spinner("Calculando diagrama de persistencia..."):
-                    fig_persistence = plot_persistent_homology(serie.flatten(), method=tda_method)
-                    st.plotly_chart(fig_persistence, use_container_width=True)
+                    try:
+                        fig_persistence = plot_persistent_homology(serie.flatten(), method=tda_method)
+                        st.plotly_chart(fig_persistence, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Error al generar diagrama de persistencia: {e}")
+                        st.info("Continuando con el análisis...")
                 
                 # === Análisis con CNN usando TDA ===
                 st.subheader("🤖 Predicción de Cambios Abruptos con CNN + TDA")
@@ -553,8 +561,10 @@ with tab2:
                         if X_te is not None:
                             st.write(f"- Características extraídas: {len(X_te[0])}")
                             st.write(f"- Rango: [{X_te.min():.3f}, {X_te.max():.3f}]")
-                except:
-                    st.write("Error al calcular TE")
+                        else:
+                            st.write("Error al calcular TE")
+                except Exception as e:
+                    st.write(f"Error al calcular TE: {e}")
             
             with col2:
                 st.write("**Sliding Window:**")
@@ -564,135 +574,10 @@ with tab2:
                         if X_sw is not None:
                             st.write(f"- Características extraídas: {len(X_sw[0])}")
                             st.write(f"- Rango: [{X_sw.min():.3f}, {X_sw.max():.3f}]")
-                except:
-                    st.write("Error al calcular SW")
-                    
-                    # Mostrar resultados
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        # Probabilidad promedio de cambio abrupto
-                        avg_prob = np.mean(predictions)
-                        st.metric("Probabilidad Promedio de Cambio Abrupto", 
-                                f"{avg_prob:.2%}")
-                    
-                    with col2:
-                        # Máxima probabilidad
-                        max_prob = np.max(predictions)
-                        st.metric("Máxima Probabilidad", f"{max_prob:.2%}")
-                    
-                    with col3:
-                        # Número de alertas (probabilidad > 0.7)
-                        alerts = np.sum(predictions > 0.7)
-                        st.metric("Alertas de Alto Riesgo", f"{alerts}")
-                    
-                    # Gráfico de predicciones
-                    st.subheader("📊 Evolución de Predicciones de Cambios Abruptos")
-                    
-                    fig_pred = plt.figure(figsize=(12, 8))
-                    
-                    # Subplot 1: Precios originales
-                    plt.subplot(2, 1, 1)
-                    plt.plot(data_filtered['report_date'].iloc[window_size-1:], 
-                            data_filtered['price'].iloc[window_size-1:], 
-                            'b-', label='Precio Real', linewidth=2)
-                    plt.title(f'Precios de {fruta_nombre}')
-                    plt.ylabel('Precio ($)')
-                    plt.legend()
-                    plt.grid(True, alpha=0.3)
-                    
-                    # Subplot 2: Predicciones de cambios abruptos
-                    plt.subplot(2, 1, 2)
-                    dates_pred = data_filtered['report_date'].iloc[window_size-1:len(predictions)+window_size-1]
-                    plt.plot(dates_pred, predictions, 'r-', label='Prob. Cambio Abrupto', linewidth=2)
-                    plt.axhline(y=0.5, color='orange', linestyle='--', label='Umbral Medio (50%)')
-                    plt.axhline(y=0.7, color='red', linestyle='--', label='Umbral Alto (70%)')
-                    plt.fill_between(dates_pred, predictions.flatten(), alpha=0.3, color='red')
-                    plt.title('Predicciones de Cambios Abruptos')
-                    plt.xlabel('Fecha')
-                    plt.ylabel('Probabilidad')
-                    plt.legend()
-                    plt.grid(True, alpha=0.3)
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_pred)
-                    
-                    # === Análisis detallado ===
-                    st.subheader("📋 Análisis Detallado")
-                    
-                    # Crear DataFrame con resultados
-                    results_df = pd.DataFrame({
-                        'Fecha': dates_pred,
-                        'Precio': data_filtered['price'].iloc[window_size-1:len(predictions)+window_size-1].values,
-                        'Probabilidad_Cambio': predictions.flatten(),
-                        'Nivel_Riesgo': pd.cut(predictions.flatten(), 
-                                             bins=[0, 0.3, 0.7, 1.0], 
-                                             labels=['Bajo', 'Medio', 'Alto'])
-                    })
-                    
-                    # Mostrar tabla con resultados
-                    st.dataframe(results_df.style.format({
-                        'Precio': '${:.2f}',
-                        'Probabilidad_Cambio': '{:.2%}'
-                    }))
-                    
-                    # === Resumen ejecutivo ===
-                    st.subheader("📈 Resumen Ejecutivo")
-                    
-                    high_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Alto'])
-                    medium_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Medio'])
-                    low_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Bajo'])
-                    
-                    st.markdown(f"""
-                    **Análisis para {fruta_nombre} en {months_dict[selected_month]} {selected_year}:**
-                    
-                    - 🔴 **Días de Alto Riesgo:** {high_risk_days} ({high_risk_days/len(results_df)*100:.1f}%)
-                    - 🟡 **Días de Riesgo Medio:** {medium_risk_days} ({medium_risk_days/len(results_df)*100:.1f}%)
-                    - 🟢 **Días de Bajo Riesgo:** {low_risk_days} ({low_risk_days/len(results_df)*100:.1f}%)
-                    
-                    **Recomendaciones:**
-                    """)
-                    
-                    if avg_prob > 0.7:
-                        st.error("⚠️ **ALTO RIESGO:** Se detecta alta probabilidad de cambios abruptos. Se recomienda monitoreo constante y estrategias de cobertura.")
-                    elif avg_prob > 0.4:
-                        st.warning("⚡ **RIESGO MODERADO:** Volatilidad detectada. Se sugiere precaución en las operaciones.")
-                    else:
-                        st.success("✅ **BAJO RIESGO:** Período relativamente estable para operaciones.")
-                    
+                        else:
+                            st.write("Error al calcular SW")
                 except Exception as e:
-                    st.error(f"Error al realizar predicciones: {e}")
-                    st.info("Verifica que el modelo sea compatible con las dimensiones de los datos.")
-            
-                else:
-                    st.warning(f"No hay suficientes datos para el análisis. Se necesitan al menos {window_size} puntos de datos.")
-        
-        else:
-            st.error("No se pudo cargar el modelo CNN. Verifica que el archivo 'modelo_sw.keras' esté en la ruta correcta.")
-            
-        # === Análisis Topológico Adicional (opcional) ===
-        if st.checkbox("Mostrar Análisis Topológico Detallado"):
-            st.subheader("🔺 Análisis de Persistencia Topológica")
-            
-            try:
-                # Aquí puedes agregar análisis topológico usando gudhi o giotto-tda
-                # Por ejemplo, diagramas de persistencia
-                st.info("Análisis topológico en desarrollo. Implementar con bibliotecas como gudhi o giotto-tda.")
-                
-                # Ejemplo básico de análisis de forma
-                from scipy.signal import find_peaks
-                
-                # Encontrar picos y valles
-                peaks, _ = find_peaks(serie.flatten(), height=np.mean(serie))
-                valleys, _ = find_peaks(-serie.flatten(), height=-np.mean(serie))
-                
-                st.write(f"📊 **Características topológicas básicas:**")
-                st.write(f"- Número de picos detectados: {len(peaks)}")
-                st.write(f"- Número de valles detectados: {len(valleys)}")
-                st.write(f"- Volatilidad (desviación estándar): ${np.std(serie):.2f}")
-                
-            except Exception as e:
-                st.warning(f"Error en análisis topológico: {e}")
+                    st.write(f"Error al calcular SW: {e}")
     
     
 # === Footer ===
