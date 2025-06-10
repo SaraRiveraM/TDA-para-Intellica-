@@ -54,17 +54,17 @@ data['report_date'] = pd.to_datetime(data['report_date'])
 with st.sidebar:
     st.image("https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/main/Images/images.png")
     st.markdown("<h1 style='font-size: 20px;'>Elija la fruta a analizar:</h1>", unsafe_allow_html=True)
-    fruta = st.radio("Seleccione una fruta:", ["zarzamora", "mora azul"])
+    fruta = st.radio("Seleccione una fruta:", ["Zarzamora", "Mora azul"])
 
 fruta_dict = {
-    "zarzamora": "Blackberries",
-    "mora azul": "Blueberries"
+    "Zarzamora": "Blackberries",
+    "Mora azul": "Blueberries"
 }
 
 # === Tabs ===
 tab1, tab2 = st.tabs([
-    f"🧪 Análisis exploratorio de los precios de la {fruta}",
-    f"🧠 Análisis topológico de {fruta}"
+    f"💵 Análisis exploratorio de los precios de la {fruta}",
+    f"🧠 Análisis topológico de la {fruta}"
 ])
 
 # ========================
@@ -73,6 +73,8 @@ tab1, tab2 = st.tabs([
 with tab1:
     st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación de los Cambios Abruptos de los Precios de la  {fruta} 💹</h1>", unsafe_allow_html=True)
     st.markdown("---")
+    st.mardown("Con esta app, se busca hacer un análisis de preciuos de distintas frutas, para que en un futuro, se pueda detectar si hay cambios abruptos o ciclos en los datos.")
+    st.mardown("👈 **Despliega el sidebar para cambiar de fruta a consultar.**")
     st.subheader("🔍 Consulta histórica de precios")
 
     data['day'] = data['report_date'].dt.day
@@ -346,6 +348,185 @@ def load_cnn_model():
         st.error(f"Error al cargar el modelo: {e}")
         return None
 
+def make_cnn_prediction(model, X_tda, method='SW'):
+    """
+    Realiza predicción con el modelo CNN manejando diferentes formatos de entrada
+    """
+    try:
+        if X_tda is None or len(X_tda) == 0:
+            raise ValueError("Datos TDA inválidos")
+            
+        # Normalizar datos TDA
+        scaler = MinMaxScaler()
+        X_tda_flat = X_tda.reshape(-1, 1)
+        X_tda_scaled = scaler.fit_transform(X_tda_flat)
+        
+        # Preparar entrada para el modelo
+        if len(X_tda_scaled) >= 3:
+            # Diferentes formatos según la arquitectura del modelo
+            input_formats = [
+                X_tda_scaled.reshape(1, -1, 1),  # (batch, sequence, features)
+                X_tda_scaled.reshape(1, -1),     # (batch, features)
+                X_tda_scaled.T.reshape(1, -1, 1), # Transpuesta
+            ]
+            
+            prediction = None
+            for i, input_format in enumerate(input_formats):
+                try:
+                    prediction = model.predict(input_format, verbose=0)
+                    break
+                except Exception as e:
+                    if i == len(input_formats) - 1:  # Último intento
+                        raise e
+                    continue
+            
+            if prediction is None:
+                raise ValueError("No se pudo hacer la predicción con ningún formato de entrada")
+                
+            # Extraer probabilidad
+            prob_cambio = float(prediction[0][0]) if prediction.ndim > 1 else float(prediction[0])
+            prob_cambio = max(0.0, min(1.0, prob_cambio))  # Clamp entre 0 y 1
+            
+            return prob_cambio, X_tda_scaled
+            
+        else:
+            raise ValueError("Características TDA insuficientes")
+            
+    except Exception as e:
+        st.error(f"Error en la predicción: {e}")
+        return None, None
+
+# Función para mostrar resultados de análisis TDA
+def display_tda_results(prob_cambio, X_tda_scaled, tda_method, fruta_nombre, selected_month, selected_year, months_dict):
+    """
+    Muestra los resultados del análisis TDA de forma organizada
+    """
+    if prob_cambio is None:
+        st.error("No se pudo realizar la predicción")
+        return
+        
+    # Métricas principales
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("🎯 Probabilidad de Cambio Abrupto", f"{prob_cambio:.2%}")
+    
+    with col2:
+        risk_level = "Alto" if prob_cambio > 0.7 else "Medio" if prob_cambio > 0.4 else "Bajo"
+        color = "🔴" if prob_cambio > 0.7 else "🟡" if prob_cambio > 0.4 else "🟢"
+        st.metric(f"{color} Nivel de Riesgo", risk_level)
+    
+    with col3:
+        confidence = "Alta" if abs(prob_cambio - 0.5) > 0.3 else "Media" if abs(prob_cambio - 0.5) > 0.15 else "Baja"
+        st.metric("📊 Confianza", confidence)
+    
+    # Visualización de características TDA
+    st.subheader("🔍 Características Topológicas Extraídas")
+    
+    fig_tda = plt.figure(figsize=(12, 4))
+    plt.plot(X_tda_scaled.flatten(), 'b-', marker='o', linewidth=2, markersize=4)
+    plt.title(f'Características TDA - Método: {tda_method}')
+    plt.xlabel('Índice de Característica')
+    plt.ylabel('Valor Normalizado')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    st.pyplot(fig_tda)
+    
+    # Interpretación de resultados
+    st.subheader("📋 Interpretación de Resultados")
+    
+    interpretacion = f"""
+    **Análisis TDA para {fruta_nombre} en {months_dict[selected_month]} {selected_year}:**
+    
+    **Método utilizado:** {tda_method} ({'Takens Embedding' if tda_method == 'TE' else 'Sliding Window'})
+    
+    **Características topológicas detectadas:**
+    - Número de características extraídas: {len(X_tda_scaled)}
+    - Rango de valores: [{X_tda_scaled.min():.3f}, {X_tda_scaled.max():.3f}]
+    - Variabilidad topológica: {X_tda_scaled.std():.3f}
+    
+    **Predicción del modelo:**
+    - Probabilidad de cambio abrupto: {prob_cambio:.2%}
+    - Clasificación de riesgo: {risk_level}
+    """
+    
+    st.markdown(interpretacion)
+    
+    # Recomendaciones
+    if prob_cambio > 0.7:
+        st.error("""
+        ⚠️ **ALERTA DE ALTO RIESGO**
+        
+        Las características topológicas indican una alta probabilidad de cambios abruptos en los precios:
+        - Implementar estrategias de cobertura inmediatamente
+        - Monitorear el mercado con mayor frecuencia
+        - Considerar reducir posiciones de riesgo
+        """)
+    elif prob_cambio > 0.4:
+        st.warning("""
+        ⚡ **PRECAUCIÓN MODERADA**
+        
+        Se detecta volatilidad en las características topológicas:
+        - Mantener vigilancia sobre las condiciones del mercado
+        - Preparar estrategias de contingencia
+        - Evaluar la diversificación del portafolio
+        """)
+    else:
+        st.success("""
+        ✅ **CONDICIONES ESTABLES**
+        
+        Las características topológicas sugieren estabilidad:
+        - Ambiente favorable para operaciones regulares
+        - Riesgo de volatilidad extrema relativamente bajo
+        - Continuar con estrategias normales de trading
+        """)
+    
+# Función principal de análisis TDA (para integrar en tu código de Streamlit)
+def run_tda_analysis(serie, tda_method, fruta_nombre, selected_month, selected_year, months_dict):
+    """
+    Función principal que ejecuta todo el análisis TDA
+    """
+    try:
+        # Mostrar diagrama de persistencia
+        st.subheader("📊 Diagrama de Persistencia")
+        
+        with st.spinner("Calculando diagrama de persistencia..."):
+            fig_persistence = plot_persistent_homology(serie.flatten(), method=tda_method)
+            if fig_persistence:
+                st.plotly_chart(fig_persistence, use_container_width=True)
+            else:
+                st.warning("No se pudo generar el diagrama de persistencia")
+        
+        # Análisis con CNN usando TDA
+        st.subheader("🤖 Predicción de Cambios Abruptos con CNN + TDA")
+        
+        # Cargar modelo CNN
+        model = load_cnn_model()
+        
+        if model is not None:
+            with st.spinner("Aplicando transformación TDA y prediciendo..."):
+                # Preparar datos para CNN usando TDA
+                X_tda = prepare_cnn_data_with_tda(serie, method=tda_method)
+                
+                if X_tda is not None:
+                    # Realizar predicción
+                    prob_cambio, X_tda_scaled = make_cnn_prediction(model, X_tda, tda_method)
+                    
+                    if prob_cambio is not None:
+                        # Mostrar resultados
+                        display_tda_results(prob_cambio, X_tda_scaled, tda_method, 
+                                          fruta_nombre, selected_month, selected_year, months_dict)
+                    else:
+                        st.error("No se pudo realizar la predicción con el modelo CNN")
+                else:
+                    st.error("No se pudieron extraer características TDA de la serie temporal")
+        else:
+            st.error("No se pudo cargar el modelo CNN desde GitHub")
+            
+    except Exception as e:
+        st.error(f"Error en el análisis TDA: {e}")
+        st.info("Verifica que tengas instaladas todas las librerías necesarias (giotto-tda, tensorflow, etc.)")
+
 # === Tab 2 - Topología ===
 with tab2:
     st.header("🔺 Análisis Topológico de Series Temporales")
@@ -426,158 +607,20 @@ with tab2:
                                  options=['TE', 'SW'], 
                                  format_func=lambda x: 'Takens Embedding' if x == 'TE' else 'Sliding Window')
         
+        # Ejecutar análisis TDA
         if len(serie) >= 10:  # Mínimo de datos necesarios
             try:
-                # Mostrar diagrama de persistencia
-                st.subheader("📊 Diagrama de Persistencia")
+                # Ejecutar análisis TDA completo usando la función principal
+                run_tda_analysis(serie, tda_method, fruta_nombre, selected_month, selected_year, months_dict)
                 
-                with st.spinner("Calculando diagrama de persistencia..."):
-                    try:
-                        fig_persistence = plot_persistent_homology(serie.flatten(), method=tda_method)
-                        st.plotly_chart(fig_persistence, use_container_width=True)
-                    except Exception as e:
-                        st.warning(f"Error al generar diagrama de persistencia: {e}")
-                        st.info("Continuando con el análisis...")
-                
-                # === Análisis con CNN usando TDA ===
-                st.subheader("🤖 Predicción de Cambios Abruptos con CNN + TDA")
-                
-                # Cargar modelo CNN
-                model = load_cnn_model()
-                
-                if model is not None:
-                    with st.spinner("Aplicando transformación TDA y prediciendo..."):
-                        # Preparar datos para CNN usando TDA
-                        X_tda = prepare_cnn_data_with_tda(serie, method=tda_method)
-                        
-                        # Verificar si tenemos datos válidos
-                        if X_tda is not None and len(X_tda) > 0:
-                            # Normalizar datos TDA
-                            from sklearn.preprocessing import MinMaxScaler
-                            scaler = MinMaxScaler()
-                            
-                            # Reshape para normalización
-                            X_tda_flat = X_tda.reshape(-1, 1)
-                            X_tda_scaled = scaler.fit_transform(X_tda_flat)
-                            
-                            # Preparar para CNN - ajustar dimensiones según tu modelo
-                            # Asumiendo que el modelo espera secuencias, creamos ventanas de las características TDA
-                            if len(X_tda_scaled) >= 3:  # Mínimo para crear una secuencia
-                                X_cnn_input = X_tda_scaled.reshape(1, -1, 1)  # (samples, timesteps, features)
-                                
-                                try:
-                                    # Realizar predicción
-                                    prediction = model.predict(X_cnn_input)
-                                    
-                                    # Mostrar resultado principal
-                                    prob_cambio = float(prediction[0][0]) if prediction.ndim > 1 else float(prediction[0])
-                                    
-                                    # Métricas principales
-                                    col1, col2, col3 = st.columns(3)
-                                    
-                                    with col1:
-                                        st.metric("🎯 Probabilidad de Cambio Abrupto", 
-                                                f"{prob_cambio:.2%}")
-                                    
-                                    with col2:
-                                        risk_level = "Alto" if prob_cambio > 0.7 else "Medio" if prob_cambio > 0.4 else "Bajo"
-                                        color = "🔴" if prob_cambio > 0.7 else "🟡" if prob_cambio > 0.4 else "🟢"
-                                        st.metric(f"{color} Nivel de Riesgo", risk_level)
-                                    
-                                    with col3:
-                                        confidence = "Alta" if abs(prob_cambio - 0.5) > 0.3 else "Media" if abs(prob_cambio - 0.5) > 0.15 else "Baja"
-                                        st.metric("📊 Confianza", confidence)
-                                    
-                                    # Visualización de características TDA
-                                    st.subheader("🔍 Características Topológicas Extraídas")
-                                    
-                                    fig_tda = plt.figure(figsize=(12, 6))
-                                    
-                                    # Plot de características TDA
-                                    plt.subplot(2, 1, 1)
-                                    plt.plot(X_tda_scaled.flatten(), 'b-', marker='o', linewidth=2, markersize=4)
-                                    plt.title(f'Características TDA - Método: {tda_method}')
-                                    plt.ylabel('Valor Normalizado')
-                                    plt.grid(True, alpha=0.3)
-                                    
-                                    # Plot de la serie original para comparación
-                                    plt.subplot(2, 1, 2)
-                                    plt.plot(data_filtered['report_date'], data_filtered['price'], 
-                                            'g-', marker='o', linewidth=2, markersize=4)
-                                    plt.title(f'Serie Original - {fruta_nombre}')
-                                    plt.xlabel('Fecha')
-                                    plt.ylabel('Precio ($)')
-                                    plt.xticks(rotation=45)
-                                    plt.grid(True, alpha=0.3)
-                                    
-                                    plt.tight_layout()
-                                    st.pyplot(fig_tda)
-                                    
-                                    # === Interpretación de resultados ===
-                                    st.subheader("📋 Interpretación de Resultados")
-                                    
-                                    interpretacion = f"""
-                                    **Análisis TDA para {fruta_nombre} en {months_dict[selected_month]} {selected_year}:**
-                                    
-                                    **Método utilizado:** {tda_method} ({'Takens Embedding' if tda_method == 'TE' else 'Sliding Window'})
-                                    
-                                    **Características topológicas detectadas:**
-                                    - Número de características extraídas: {len(X_tda_scaled)}
-                                    - Rango de valores: [{X_tda_scaled.min():.3f}, {X_tda_scaled.max():.3f}]
-                                    - Variabilidad topológica: {X_tda_scaled.std():.3f}
-                                    
-                                    **Predicción del modelo:**
-                                    - Probabilidad de cambio abrupto: {prob_cambio:.2%}
-                                    - Clasificación de riesgo: {risk_level}
-                                    """
-                                    
-                                    st.markdown(interpretacion)
-                                    
-                                    # Recomendaciones basadas en el resultado
-                                    if prob_cambio > 0.7:
-                                        st.error("""
-                                        ⚠️ **ALERTA DE ALTO RIESGO**
-                                        
-                                        Las características topológicas indican una alta probabilidad de cambios abruptos en los precios:
-                                        - Implementar estrategias de cobertura inmediatamente
-                                        - Monitorear el mercado con mayor frecuencia
-                                        - Considerar reducir posiciones de riesgo
-                                        """)
-                                    elif prob_cambio > 0.4:
-                                        st.warning("""
-                                        ⚡ **PRECAUCIÓN MODERADA**
-                                        
-                                        Se detecta volatilidad en las características topológicas:
-                                        - Mantener vigilancia sobre las condiciones del mercado
-                                        - Preparar estrategias de contingencia
-                                        - Evaluar la diversificación del portafolio
-                                        """)
-                                    else:
-                                        st.success("""
-                                        ✅ **CONDICIONES ESTABLES**
-                                        
-                                        Las características topológicas sugieren estabilidad:
-                                        - Ambiente favorable para operaciones regulares
-                                        - Riesgo de volatilidad extrema relativamente bajo
-                                        - Continuar con estrategias normales de trading
-                                        """)
-                                    
-                                except Exception as e:
-                                    st.error(f"Error en la predicción del modelo: {e}")
-                                    st.info("Verifica que el modelo sea compatible con las características TDA extraídas.")
-                            
-                            else:
-                                st.warning("Las características TDA extraídas son insuficientes para el modelo CNN.")
-                        
-                        else:
-                            st.error("No se pudieron extraer características TDA de la serie temporal.")
-                
-                else:
-                    st.error("No se pudo cargar el modelo CNN. Verifica que el archivo 'modelo_sw.keras' esté en la ruta correcta.")
-                    
             except Exception as e:
                 st.error(f"Error en el análisis topológico: {e}")
-                st.info("Verifica que tengas instaladas todas las librerías necesarias (giotto-tda, etc.)")
+                st.info("Verifica que tengas instaladas todas las librerías necesarias (giotto-tda, tensorflow, etc.)")
+                
+                # Mostrar detalles del error en modo debug
+                with st.expander("🔍 Detalles del error (Debug)"):
+                    import traceback
+                    st.code(traceback.format_exc())
         
         else:
             st.warning("Se necesitan al menos 10 puntos de datos para el análisis topológico.")
@@ -601,9 +644,15 @@ with tab2:
             - Robusto ante ruido en los datos
             - Identifica cambios estructurales en la dinámica del mercado
             - Proporciona características invariantes para clasificación
+            
+            **Interpretación de resultados:**
+            
+            - **Probabilidad > 70%**: Alto riesgo de cambios abruptos
+            - **Probabilidad 40-70%**: Riesgo moderado, precaución recomendada
+            - **Probabilidad < 40%**: Condiciones relativamente estables
             """)
         
-        # === Comparación de métodos ===
+        # === Comparación de métodos TDA ===
         if st.checkbox("🔄 Comparar métodos TDA"):
             st.subheader("📊 Comparación: Takens Embedding vs Sliding Window")
             
@@ -614,27 +663,134 @@ with tab2:
                 try:
                     with st.spinner("Calculando TE..."):
                         X_te = prepare_cnn_data_with_tda(serie, method='TE')
-                        if X_te is not None:
-                            st.write(f"- Características extraídas: {len(X_te[0])}")
-                            st.write(f"- Rango: [{X_te.min():.3f}, {X_te.max():.3f}]")
+                        if X_te is not None and len(X_te) > 0:
+                            st.write(f"✅ Características extraídas: {len(X_te[0])}")
+                            st.write(f"📊 Rango: [{X_te.min():.3f}, {X_te.max():.3f}]")
+                            st.write(f"📈 Desviación estándar: {X_te.std():.3f}")
+                            
+                            # Mostrar algunas estadísticas adicionales
+                            te_stats = {
+                                "Media": X_te.mean(),
+                                "Mediana": np.median(X_te),
+                                "Varianza": X_te.var()
+                            }
+                            
+                            for stat_name, stat_value in te_stats.items():
+                                st.write(f"• {stat_name}: {stat_value:.3f}")
                         else:
-                            st.write("Error al calcular TE")
+                            st.write("❌ Error al calcular TE")
+                            
                 except Exception as e:
-                    st.write(f"Error al calcular TE: {e}")
+                    st.write(f"❌ Error al calcular TE: {str(e)[:50]}...")
             
             with col2:
                 st.write("**Sliding Window:**")
                 try:
                     with st.spinner("Calculando SW..."):
                         X_sw = prepare_cnn_data_with_tda(serie, method='SW')
-                        if X_sw is not None:
-                            st.write(f"- Características extraídas: {len(X_sw[0])}")
-                            st.write(f"- Rango: [{X_sw.min():.3f}, {X_sw.max():.3f}]")
+                        if X_sw is not None and len(X_sw) > 0:
+                            st.write(f"✅ Características extraídas: {len(X_sw[0])}")
+                            st.write(f"📊 Rango: [{X_sw.min():.3f}, {X_sw.max():.3f}]")
+                            st.write(f"📈 Desviación estándar: {X_sw.std():.3f}")
+                            
+                            # Mostrar algunas estadísticas adicionales
+                            sw_stats = {
+                                "Media": X_sw.mean(),
+                                "Mediana": np.median(X_sw),
+                                "Varianza": X_sw.var()
+                            }
+                            
+                            for stat_name, stat_value in sw_stats.items():
+                                st.write(f"• {stat_name}: {stat_value:.3f}")
                         else:
-                            st.write("Error al calcular SW")
+                            st.write("❌ Error al calcular SW")
+                            
                 except Exception as e:
-                    st.write(f"Error al calcular SW: {e}")
-    
+                    st.write(f"❌ Error al calcular SW: {str(e)[:50]}...")
+            
+            # Comparación visual si ambos métodos funcionan
+            try:
+                if st.button("📈 Mostrar comparación visual"):
+                    with st.spinner("Generando comparación visual..."):
+                        fig_comparison = plt.figure(figsize=(14, 8))
+                        
+                        # Subplot para TE
+                        plt.subplot(2, 1, 1)
+                        X_te_comp = prepare_cnn_data_with_tda(serie, method='TE')
+                        if X_te_comp is not None:
+                            scaler_te = MinMaxScaler()
+                            X_te_scaled = scaler_te.fit_transform(X_te_comp.reshape(-1, 1)).flatten()
+                            plt.plot(X_te_scaled, 'b-', marker='o', linewidth=2, markersize=3, label='Takens Embedding')
+                            plt.title('Características TDA - Takens Embedding')
+                            plt.ylabel('Valor Normalizado')
+                            plt.grid(True, alpha=0.3)
+                            plt.legend()
+                        
+                        # Subplot para SW
+                        plt.subplot(2, 1, 2)
+                        X_sw_comp = prepare_cnn_data_with_tda(serie, method='SW')
+                        if X_sw_comp is not None:
+                            scaler_sw = MinMaxScaler()
+                            X_sw_scaled = scaler_sw.fit_transform(X_sw_comp.reshape(-1, 1)).flatten()
+                            plt.plot(X_sw_scaled, 'r-', marker='s', linewidth=2, markersize=3, label='Sliding Window')
+                            plt.title('Características TDA - Sliding Window')
+                            plt.xlabel('Índice de Característica')
+                            plt.ylabel('Valor Normalizado')
+                            plt.grid(True, alpha=0.3)
+                            plt.legend()
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig_comparison)
+                        
+            except Exception as e:
+                st.error(f"Error en la comparación visual: {e}")
+        
+        # === Estadísticas de la serie temporal ===
+        with st.expander("📊 Estadísticas de la serie temporal"):
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("📈 Precio Máximo", f"${data_filtered['price'].max():.2f}")
+            
+            with col2:
+                st.metric("📉 Precio Mínimo", f"${data_filtered['price'].min():.2f}")
+            
+            with col3:
+                st.metric("📊 Precio Promedio", f"${data_filtered['price'].mean():.2f}")
+            
+            with col4:
+                st.metric("📋 Volatilidad", f"{data_filtered['price'].std():.2f}")
+            
+            # Información adicional
+            st.markdown("---")
+            price_change = data_filtered['price'].iloc[-1] - data_filtered['price'].iloc[0] if len(data_filtered) > 1 else 0
+            price_change_pct = (price_change / data_filtered['price'].iloc[0] * 100) if len(data_filtered) > 1 and data_filtered['price'].iloc[0] != 0 else 0
+            
+            st.write(f"**Cambio en el período:** ${price_change:.2f} ({price_change_pct:+.1f}%)")
+            st.write(f"**Número de observaciones:** {len(data_filtered)}")
+            st.write(f"**Rango de fechas:** {data_filtered['report_date'].min().strftime('%Y-%m-%d')} a {data_filtered['report_date'].max().strftime('%Y-%m-%d')}")
+        
+        # === Configuración avanzada ===
+        with st.expander("⚙️ Configuración avanzada TDA"):
+            st.markdown("**Parámetros para Takens Embedding:**")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                custom_dimension = st.slider("Dimensión del embedding", 2, 10, 5)
+                custom_delay = st.slider("Time delay", 1, 10, 5)
+            
+            with col2:
+                custom_stride = st.slider("Stride", 1, 5, 2)
+            
+            st.markdown("**Parámetros para Sliding Window:**")
+            max_window = min(30, len(serie) // 2)
+            custom_window = st.slider("Tamaño de ventana", 3, max_window, min(10, max_window))
+            
+            if st.button("🔄 Aplicar configuración personalizada"):
+                st.info("Aplicando configuración personalizada...")
+                # Aquí podrías llamar a las funciones con parámetros personalizados
+                # run_tda_analysis_custom(serie, tda_method, custom_params, ...)
+                st.success("Configuración aplicada (funcionalidad en desarrollo)")
     
 # === Footer ===
 st.markdown("---")
