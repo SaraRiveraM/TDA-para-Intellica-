@@ -231,37 +231,44 @@ def tda_transformation(X, method='TE'):
 def plot_persistent_homology(x, method="TE", embedding_dimension=5, embedding_time_delay=5, stride=2, homology_dimensions=[0, 1, 2], window_size=5):
     """
     Calcula y plotea el diagrama de persistencia (H0, H1, H2) de una serie de tiempo.
+    
     Parámetros:
     - x: np.array, serie de tiempo unidimensional.
+    - method: str, método de embedding ("TE" para Takens, "SW" para Sliding Window).
     - embedding_dimension: dimensión del embedding de Takens.
     - embedding_time_delay: delay entre componentes del embedding.
     - stride: stride del embedding.
     - homology_dimensions: lista de dimensiones homológicas a calcular.
+    - window_size: tamaño de la ventana para sliding window embedding.
+    
+    Returns:
+    - fig: figura de matplotlib con el diagrama de persistencia.
     """
+    
     if method == "TE":
         # Takens embedding
-        takens = SingleTakensEmbedding(time_delay=embedding_time_delay,
-                                    dimension=embedding_dimension,
-                                    stride=stride)
-        X_embedded = takens.fit_transform(x)
-        # Vietoris-Rips
-        vr = VietorisRipsPersistence(homology_dimensions=homology_dimensions)
-        X_embedded_batch = X_embedded[None, :, :]  # reshape para batch
-        diagrams = vr.fit_transform(X_embedded_batch)
-        # Plot
-        fig = plot_diagram(diagrams[0])
-        return fig
-    if method == "SW": 
+        takens = TakensEmbedding(time_delay=embedding_time_delay,
+                               dimension=embedding_dimension,
+                               stride=stride)
+        X_embedded = takens.fit_transform(x.reshape(-1, 1))  # reshape para formato correcto
+        
+    elif method == "SW": 
         # Sliding window embedding
         sliding = SlidingWindow(size=window_size, stride=stride)
-        X_embedded = sliding.fit_transform(x)
-        # Vietoris-Rips
-        vr = VietorisRipsPersistence(homology_dimensions=homology_dimensions)
-        X_embedded_batch = X_embedded[None, :, :]  # reshape para batch
-        diagrams = vr.fit_transform(X_embedded_batch)
-        # Plot
-        fig = plot_diagram(diagrams[0])
-        return fig
+        X_embedded = sliding.fit_transform(x.reshape(-1, 1))  # reshape para formato correcto
+        
+    else:
+        raise ValueError("Method debe ser 'TE' o 'SW'")
+    
+    # Vietoris-Rips persistence
+    vr = VietorisRipsPersistence(homology_dimensions=homology_dimensions)
+    diagrams = vr.fit_transform(X_embedded)
+    
+    # Plot del diagrama de persistencia
+    fig = plot_diagram(diagrams[0])
+    plt.title(f'Diagrama de Persistencia - Método: {method}')
+    
+    return fig
 
 # Función para preparar datos para CNN usando TDA
 def prepare_cnn_data_with_tda(serie, method='SW'):
