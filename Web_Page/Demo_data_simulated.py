@@ -27,6 +27,9 @@ from gtda.homology import VietorisRipsPersistence
 import seaborn as sns 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import MinMaxScaler
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from scipy.signal import find_peaks
 
 
 # === Initial configuration ===
@@ -189,6 +192,29 @@ class CollectionTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return np.array([self.estimator.fit_transform(x) for x in X])
 
+# Función para preparar datos para CNN
+def prepare_cnn_data(serie, window_size=30):
+    """
+    Prepara los datos de la serie temporal para el modelo CNN
+    """
+    X = []
+    for i in range(len(serie) - window_size + 1):
+        X.append(serie[i:(i + window_size)])
+    return np.array(X)
+
+# Función para cargar y aplicar el modelo CNN
+@st.cache_resource
+def load_cnn_model():
+    """
+    Carga el modelo CNN desde el archivo .keras
+    """
+    try:
+        model = load_model("C:/Users/52452/Downloads/modelo_sw.keras")
+        return model
+    except Exception as e:
+        st.error(f"Error al cargar el modelo: {e}")
+        return None
+
 # === Tab 2 - Topología ===
 with tab2:
     st.header("🔺 Análisis Topológico de Series Temporales")
@@ -202,108 +228,221 @@ with tab2:
     
     data_f['report_date'] = pd.to_datetime(data_f['report_date'])
     data_f = data_f.sort_values("report_date")
-    serie = data_f["price"].values.reshape(-1, 1)
     
-    # === Parameter Configuration ===
-    with st.expander("⚙️ Configuración de Parámetros", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            embedding_dim = st.slider("Dimensión Embedding", 2, 5, 3, key='embed_dim')
-            embedding_delay = st.slider("Time Delay", 1, 10, 2, key='embed_delay')
-            te_stride = st.slider("Stride Embedding", 1, 5, 1, key='te_stride')
-        with col2:
-            window_size = st.slider("Tamaño Ventana", 10, 60, 30, key='window_size')
-            sw_stride = st.slider("Stride Ventana", 1, 20, 5, key='sw_stride')
-            max_homology = st.slider("Dimensión Homológica Máxima", 1, 3, 2, key='max_hom')
+    # Agregar columnas de año y mes para filtrado
+    data_f['year'] = data_f['report_date'].dt.year
+    data_f['month'] = data_f['report_date'].dt.month
+    data_f['year_month'] = data_f['report_date'].dt.to_period('M')
     
-    # Convertir a lista las dimensiones homológicas
-    homology_dims = list(range(max_homology + 1))  # Conversión explícita a lista
+    st.subheader(f"📊 Análisis de precios de {fruta_nombre}")
     
-    # === Pipeline Definitions ===
-    # 1. Takens Embedding Pipeline
-    te_pipeline = Pipeline([
-        ("embedding", TakensEmbedding(
-            time_delay=embedding_delay,
-            dimension=embedding_dim,
-            stride=te_stride
-        )),
-        ("pca", CollectionTransformer(PCA(n_components=3)) if embedding_dim > 3 else ("passthrough", "passthrough")),
-        ("persistence", VietorisRipsPersistence(
-            homology_dimensions=homology_dims  # Usamos la lista convertida
-        )),
-        ("scaling", Scaler()),
-        ("entropy", PersistenceEntropy(normalize=True))
-    ], memory=None)
+    # === Selección de período ===
+    col1, col2 = st.columns(2)
     
-    # 2. Sliding Window Pipeline
-    sw_pipeline = Pipeline([
-        ("window", SlidingWindow(
-            size=window_size,
-            stride=sw_stride
-        )),
-        ("pca", CollectionTransformer(PCA(n_components=3))),
-        ("persistence", VietorisRipsPersistence(
-            homology_dimensions=homology_dims  # Usamos la lista convertida
-        )),
-        ("scaling", Scaler()),
-        ("entropy", PersistenceEntropy(normalize=True))
-    ], memory=None)
+    with col1:
+        # Seleccionar año
+        years_available = sorted(data_f['year'].unique())
+        selected_year = st.selectbox("Selecciona el año:", years_available)
     
-    # 3. Direct Rips Pipeline - Versión corregida
-    def calcular_persistencia(X, maxdim):
-        X_2d = np.array(X).reshape(-1, 1)
-        homology_dims = list(range(maxdim + 1))  # Conversión a lista aquí también
-        rips = VietorisRipsPersistence(homology_dimensions=homology_dims)
-        return rips.fit_transform([X_2d])[0]
+    with col2:
+        # Seleccionar mes
+        months_dict = {
+            1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+            5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+            9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+        }
+        
+        # Filtrar meses disponibles para el año seleccionado
+        months_available = sorted(data_f[data_f['year'] == selected_year]['month'].unique())
+        month_options = {month: months_dict[month] for month in months_available}
+        
+        selected_month = st.selectbox("Selecciona el mes:", 
+                                    options=list(month_options.keys()),
+                                    format_func=lambda x: month_options[x])
     
-    rips_pipeline = Pipeline([
-        ('persistence', FunctionTransformer(
-            calcular_persistencia,
-            kw_args={'maxdim': max_homology}
-        ))
-    ])
+    # === Filtrar datos según selección ===
+    data_filtered = data_f[(data_f['year'] == selected_year) & (data_f['month'] == selected_month)]
     
-    # === Visualization in Tabs ===
-    te_tab, sw_tab, rips_tab = st.tabs([
-        "🔄 Takens Embedding", 
-        "📊 Sliding Windows", 
-        "🔷 Diagramas Persistencia"
-    ])
-    
-    with rips_tab:
-        st.subheader("Diagramas de Persistencia")
-        try:
-            with st.spinner("Generando diagramas..."):
-                diagrams = rips_pipeline.fit_transform(serie)
-                from gtda.plotting import plot_diagram
-
-                fig, ax = plt.subplots(figsize=(8, 8))
-                st.plotly_chart(plot_diagram(diagrams[0]))
-                ax.set_title(f'Diagrama de Persistencia - {fruta}')
-                ax.set_xlabel('Nacimiento')
-                ax.set_ylabel('Muerte')
-                ax.grid(True, linestyle='--', alpha=0.6)
-                st.pyplot(fig)
+    if len(data_filtered) == 0:
+        st.warning("No hay datos disponibles para el período seleccionado.")
+    else:
+        # Mostrar información del período seleccionado
+        st.info(f"📅 Período seleccionado: {months_dict[selected_month]} {selected_year} "
+                f"({len(data_filtered)} registros)")
+        
+        # Preparar serie temporal
+        serie = data_filtered["price"].values.reshape(-1, 1)
+        
+        # === Visualización de la serie temporal ===
+        st.subheader("📈 Serie Temporal del Período Seleccionado")
+        
+        fig_serie = plt.figure(figsize=(12, 6))
+        plt.plot(data_filtered['report_date'], data_filtered['price'], 
+                marker='o', linewidth=2, markersize=4)
+        plt.title(f'Precios de {fruta_nombre} - {months_dict[selected_month]} {selected_year}')
+        plt.xlabel('Fecha')
+        plt.ylabel('Precio ($)')
+        plt.xticks(rotation=45)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig_serie)
+        
+        # === Análisis con CNN ===
+        st.subheader("🤖 Predicción de Cambios Abruptos con CNN")
+        
+        # Cargar modelo CNN
+        model = load_cnn_model()
+        
+        if model is not None:
+            # Parámetros para la CNN
+            window_size = st.slider("Tamaño de ventana para CNN:", 
+                                   min_value=10, max_value=min(50, len(serie)-1), 
+                                   value=min(30, len(serie)-1))
+            
+            if len(serie) >= window_size:
+                # Preparar datos para CNN
+                X_cnn = prepare_cnn_data(serie.flatten(), window_size)
                 
-                st.markdown("""
-                **Interpretación:**
-                - Puntos lejos de la diagonal = características persistentes
-                - Color indica dimensión homológica:
-                  - Azul: Componentes conexas (H0)
-                  - Naranja: Bucles (H1)
-                  - Verde: Cavidades (H2)
-                """)
-        except Exception as e:
-            st.error(f"Error en diagramas de persistencia: {str(e)}")
-            st.info("Verifica que los datos tengan suficiente variabilidad")
+                # Normalizar datos si es necesario
+                from sklearn.preprocessing import MinMaxScaler
+                scaler = MinMaxScaler()
+                X_cnn_scaled = scaler.fit_transform(X_cnn.reshape(-1, 1)).reshape(X_cnn.shape)
+                
+                # Reshape para CNN (samples, timesteps, features)
+                X_cnn_reshaped = X_cnn_scaled.reshape(X_cnn_scaled.shape[0], X_cnn_scaled.shape[1], 1)
+                
+                try:
+                    # Realizar predicciones
+                    predictions = model.predict(X_cnn_reshaped)
+                    
+                    # Mostrar resultados
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        # Probabilidad promedio de cambio abrupto
+                        avg_prob = np.mean(predictions)
+                        st.metric("Probabilidad Promedio de Cambio Abrupto", 
+                                f"{avg_prob:.2%}")
+                    
+                    with col2:
+                        # Máxima probabilidad
+                        max_prob = np.max(predictions)
+                        st.metric("Máxima Probabilidad", f"{max_prob:.2%}")
+                    
+                    with col3:
+                        # Número de alertas (probabilidad > 0.7)
+                        alerts = np.sum(predictions > 0.7)
+                        st.metric("Alertas de Alto Riesgo", f"{alerts}")
+                    
+                    # Gráfico de predicciones
+                    st.subheader("📊 Evolución de Predicciones de Cambios Abruptos")
+                    
+                    fig_pred = plt.figure(figsize=(12, 8))
+                    
+                    # Subplot 1: Precios originales
+                    plt.subplot(2, 1, 1)
+                    plt.plot(data_filtered['report_date'].iloc[window_size-1:], 
+                            data_filtered['price'].iloc[window_size-1:], 
+                            'b-', label='Precio Real', linewidth=2)
+                    plt.title(f'Precios de {fruta_nombre}')
+                    plt.ylabel('Precio ($)')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    
+                    # Subplot 2: Predicciones de cambios abruptos
+                    plt.subplot(2, 1, 2)
+                    dates_pred = data_filtered['report_date'].iloc[window_size-1:len(predictions)+window_size-1]
+                    plt.plot(dates_pred, predictions, 'r-', label='Prob. Cambio Abrupto', linewidth=2)
+                    plt.axhline(y=0.5, color='orange', linestyle='--', label='Umbral Medio (50%)')
+                    plt.axhline(y=0.7, color='red', linestyle='--', label='Umbral Alto (70%)')
+                    plt.fill_between(dates_pred, predictions.flatten(), alpha=0.3, color='red')
+                    plt.title('Predicciones de Cambios Abruptos')
+                    plt.xlabel('Fecha')
+                    plt.ylabel('Probabilidad')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig_pred)
+                    
+                    # === Análisis detallado ===
+                    st.subheader("📋 Análisis Detallado")
+                    
+                    # Crear DataFrame con resultados
+                    results_df = pd.DataFrame({
+                        'Fecha': dates_pred,
+                        'Precio': data_filtered['price'].iloc[window_size-1:len(predictions)+window_size-1].values,
+                        'Probabilidad_Cambio': predictions.flatten(),
+                        'Nivel_Riesgo': pd.cut(predictions.flatten(), 
+                                             bins=[0, 0.3, 0.7, 1.0], 
+                                             labels=['Bajo', 'Medio', 'Alto'])
+                    })
+                    
+                    # Mostrar tabla con resultados
+                    st.dataframe(results_df.style.format({
+                        'Precio': '${:.2f}',
+                        'Probabilidad_Cambio': '{:.2%}'
+                    }))
+                    
+                    # === Resumen ejecutivo ===
+                    st.subheader("📈 Resumen Ejecutivo")
+                    
+                    high_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Alto'])
+                    medium_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Medio'])
+                    low_risk_days = len(results_df[results_df['Nivel_Riesgo'] == 'Bajo'])
+                    
+                    st.markdown(f"""
+                    **Análisis para {fruta_nombre} en {months_dict[selected_month]} {selected_year}:**
+                    
+                    - 🔴 **Días de Alto Riesgo:** {high_risk_days} ({high_risk_days/len(results_df)*100:.1f}%)
+                    - 🟡 **Días de Riesgo Medio:** {medium_risk_days} ({medium_risk_days/len(results_df)*100:.1f}%)
+                    - 🟢 **Días de Bajo Riesgo:** {low_risk_days} ({low_risk_days/len(results_df)*100:.1f}%)
+                    
+                    **Recomendaciones:**
+                    """)
+                    
+                    if avg_prob > 0.7:
+                        st.error("⚠️ **ALTO RIESGO:** Se detecta alta probabilidad de cambios abruptos. Se recomienda monitoreo constante y estrategias de cobertura.")
+                    elif avg_prob > 0.4:
+                        st.warning("⚡ **RIESGO MODERADO:** Volatilidad detectada. Se sugiere precaución en las operaciones.")
+                    else:
+                        st.success("✅ **BAJO RIESGO:** Período relativamente estable para operaciones.")
+                    
+                except Exception as e:
+                    st.error(f"Error al realizar predicciones: {e}")
+                    st.info("Verifica que el modelo sea compatible con las dimensiones de los datos.")
+            
+            else:
+                st.warning(f"No hay suficientes datos para el análisis. Se necesitan al menos {window_size} puntos de datos.")
+        
+        else:
+            st.error("No se pudo cargar el modelo CNN. Verifica que el archivo 'modelo_sw.keras' esté en la ruta correcta.")
+            
+        # === Análisis Topológico Adicional (opcional) ===
+        if st.checkbox("Mostrar Análisis Topológico Detallado"):
+            st.subheader("🔺 Análisis de Persistencia Topológica")
+            
+            try:
+                # Aquí puedes agregar análisis topológico usando gudhi o giotto-tda
+                # Por ejemplo, diagramas de persistencia
+                st.info("Análisis topológico en desarrollo. Implementar con bibliotecas como gudhi o giotto-tda.")
+                
+                # Ejemplo básico de análisis de forma
+                from scipy.signal import find_peaks
+                
+                # Encontrar picos y valles
+                peaks, _ = find_peaks(serie.flatten(), height=np.mean(serie))
+                valleys, _ = find_peaks(-serie.flatten(), height=-np.mean(serie))
+                
+                st.write(f"📊 **Características topológicas básicas:**")
+                st.write(f"- Número de picos detectados: {len(peaks)}")
+                st.write(f"- Número de valles detectados: {len(valleys)}")
+                st.write(f"- Volatilidad (desviación estándar): ${np.std(serie):.2f}")
+                
+            except Exception as e:
+                st.warning(f"Error en análisis topológico: {e}")
     
-    # === Data Summary ===
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Resumen de Datos")
-    st.sidebar.write(f"📅 Rango temporal: {data_f['report_date'].min().date()} a {data_f['report_date'].max().date()}")
-    st.sidebar.write(f"🔢 Puntos de datos: {len(serie)}")
-
-
+    
 # === Footer ===
 st.markdown("---")
 st.markdown("""
