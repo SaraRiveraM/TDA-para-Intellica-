@@ -30,6 +30,8 @@ from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from scipy.signal import find_peaks
+from gtda.plotting import plot_diagram
+
 
 
 # === Initial configuration ===
