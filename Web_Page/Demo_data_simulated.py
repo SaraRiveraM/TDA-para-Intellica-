@@ -31,6 +31,8 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from scipy.signal import find_peaks
 from gtda.plotting import plot_diagram
+import tempfile
+import requests
 
 
 
@@ -287,17 +289,21 @@ def prepare_cnn_data_with_tda(serie, method='SW'):
 
 # Función para cargar y aplicar el modelo CNN
 @st.cache_resource
-def load_cnn_model():
-    """
-    Carga el modelo CNN desde el archivo .keras
-    """
-    try:
-        from tensorflow.keras.models import load_model
-        model = load_model("C:/Users/52452/Downloads/modelo_sw.keras")
-        return model
-    except Exception as e:
-        st.error(f"Error al cargar el modelo: {e}")
-        return None
+def load_model_from_github():
+    url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/main/Web_Page/Models/modelo_sw.keras"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        raise Exception("No se pudo descargar el modelo desde GitHub.")
+
+    # Guardar el modelo temporalmente
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".keras") as tmp_file:
+        tmp_file.write(response.content)
+        tmp_model_path = tmp_file.name
+
+    # Cargar modelo
+    model = tf.keras.models.load_model(tmp_model_path)
+    return model
 
 # === Tab 2 - Topología ===
 with tab2:
