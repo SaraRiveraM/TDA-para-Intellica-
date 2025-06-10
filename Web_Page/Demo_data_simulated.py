@@ -289,7 +289,7 @@ def prepare_cnn_data_with_tda(serie, method='SW'):
 
 # Función para cargar y aplicar el modelo CNN
 @st.cache_resource
-def load_model_from_github():
+def load_cnn_model():
     url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/main/Web_Page/Models/modelo_sw.keras"
     response = requests.get(url)
     
