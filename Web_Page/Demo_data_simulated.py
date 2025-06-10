@@ -284,7 +284,7 @@ def load_cnn_model():
     """
     try:
         from tensorflow.keras.models import load_model
-        model = load_model("modelo_sw.keras")
+        model = load_model("C:/Users/52452/Downloads/modelo_sw.keras")
         return model
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
