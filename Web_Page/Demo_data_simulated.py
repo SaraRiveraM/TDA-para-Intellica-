@@ -302,54 +302,58 @@ def prepare_cnn_data_with_tda(serie, method='SW'):
         return None
 
 # Función para cargar y aplicar el modelo CNN
+
 @st.cache_resource
 def load_cnn_model():
     """
-    Carga el modelo CNN con manejo robusto de errores
+    Intenta cargar un modelo .keras desde una URL remota.
+    Si falla, intenta cargarlo desde una ruta local.
     """
+    url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/rene/Web_Page/Models/modelo_sw.keras"
+    
+    # Intentar descargar desde GitHub
     try:
-        url = "https://raw.githubusercontent.com/SaraRiveraM/TDA-para-Intellica-/rene/Web_Page/Models/modelo_sw.keras"
-        
-        # Verificar conectividad
         response = requests.get(url, timeout=30)
-        
         if response.status_code != 200:
-            raise Exception(f"Error al descargar el modelo. Código de estado: {response.status_code}")
-
-        # Crear archivo temporal
+            raise Exception(f"Respuesta HTTP inválida: {response.status_code}")
+        
+        # Guardar en archivo temporal
         with tempfile.NamedTemporaryFile(delete=False, suffix=".keras") as tmp_file:
             tmp_file.write(response.content)
             tmp_model_path = tmp_file.name
+        
+        # Verificar archivo válido
+        if os.path.getsize(tmp_model_path) == 0:
+            raise Exception("El archivo descargado está vacío.")
 
-        # Verificar que el archivo se escribió correctamente
-        import os
-        if not os.path.exists(tmp_model_path) or os.path.getsize(tmp_model_path) == 0:
-            raise Exception("El archivo del modelo no se guardó correctamente")
-
-        # Cargar modelo con diferentes métodos
+        # Cargar modelo
         try:
             model = tf.keras.models.load_model(tmp_model_path)
-        except Exception as e1:
-            try:
-                # Intentar cargar sin compilar
-                model = tf.keras.models.load_model(tmp_model_path, compile=False)
-            except Exception as e2:
-                raise Exception(f"No se pudo cargar el modelo. Error 1: {e1}, Error 2: {e2}")
-        
-        # Limpiar archivo temporal
-        try:
-            os.unlink(tmp_model_path)
         except:
-            pass  # No es crítico si no se puede eliminar
-        
-        # Cargar en local
-        try:
-            model = tf.keras.models.load_model("C:/Users/52452/Downloads/modelo_sw.keras")
-        except:
-            raise Exception(f"Tampoco es posible leer el archivo en local.")
-        
-           
+            model = tf.keras.models.load_model(tmp_model_path, compile=False)
+
+        # Limpiar temporal
+        os.unlink(tmp_model_path)
+
+        st.success("Modelo cargado desde GitHub correctamente.")
         return model
+
+    except Exception as e:
+        st.warning(f"No se pudo cargar desde GitHub: {e}")
+        st.info("Intentando cargar desde archivo local...")
+
+        # Ruta local de respaldo
+        local_path = "C:/Users/52452/Downloads/modelo_sw.keras"
+        if os.path.exists(local_path):
+            try:
+                model = tf.keras.models.load_model(local_path)
+                st.success("Modelo cargado desde archivo local.")
+                return model
+            except Exception as e_local:
+                raise Exception(f"Error al cargar desde local: {e_local}")
+        else:
+            raise FileNotFoundError(f"No se encontró el archivo local en: {local_path}")
+
         
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
