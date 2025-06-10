@@ -73,8 +73,8 @@ tab1, tab2 = st.tabs([
 with tab1:
     st.markdown(f"<h1 style='font-size: 40px;'>💲 Análisis Topológico: Relación de los Cambios Abruptos de los Precios de la  {fruta} 💹</h1>", unsafe_allow_html=True)
     st.markdown("---")
-    st.mardown("Con esta app, se busca hacer un análisis de preciuos de distintas frutas, para que en un futuro, se pueda detectar si hay cambios abruptos o ciclos en los datos.")
-    st.mardown("👈 **Despliega el sidebar para cambiar de fruta a consultar.**")
+    st.markdown("Con esta app, se busca hacer un análisis de preciuos de distintas frutas, para que en un futuro, se pueda detectar si hay cambios abruptos o ciclos en los datos.")
+    st.markdown("👈 **Despliega el sidebar para cambiar de fruta a consultar.**")
     st.subheader("🔍 Consulta histórica de precios")
 
     data['day'] = data['report_date'].dt.day
