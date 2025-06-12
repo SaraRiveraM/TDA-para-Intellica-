@@ -1,4 +1,4 @@
-# TDA para Intellica 🍎📊
+# TDA para Intelica 🍎📊
 
 Soluciones utilizando series de tiempo y análisis topológico de datos (TDA) para determinar los cambios en la relación precio-volumen de distintas frutas.
 
