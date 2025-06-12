@@ -37,6 +37,9 @@ import os
 
 
 
+# === Read the data ===
+data = pd.read_csv("C:/Users/areba/Downloads/Topo2025_prices_USDA.csv")
+
 # === Initial configuration ===
 st.set_page_config(
     layout="wide",
